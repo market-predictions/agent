@@ -54,6 +54,7 @@ freellmapi_client_secret = modal.Secret.from_name(
 
 freellmapi_image = (
     modal.Image.from_registry(FREELLMAPI_IMAGE, add_python="3.12")
+    .env({"FREEAPI_CONFIG_PATH": "/app/agent-freellmapi-default.json"})
     .add_local_file(
         "runtime/freellmapi-bootstrap.mjs",
         "/app/agent-freellmapi-bootstrap.mjs",
@@ -62,7 +63,6 @@ freellmapi_image = (
         "runtime/freellmapi.default.json",
         "/app/agent-freellmapi-default.json",
     )
-    .env({"FREEAPI_CONFIG_PATH": "/app/agent-freellmapi-default.json"})
 )
 
 # Hermes intentionally rejects ordinary wheel/sdist installation. Upstream's

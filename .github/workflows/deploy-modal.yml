@@ -8,10 +8,6 @@ on:
         required: true
         default: true
         type: boolean
-  # Temporary bootstrap trigger. Remove after the first verified cloud deploy.
-  push:
-    branches:
-      - bootstrap/agent-r1-gap-01
 
 permissions:
   contents: read
@@ -49,5 +45,5 @@ jobs:
       - name: Deploy pinned runtime
         run: modal deploy modal_app.py
       - name: End-to-end smoke
-        if: ${{ github.event_name == 'push' || inputs.run_smoke }}
+        if: ${{ inputs.run_smoke }}
         run: modal run modal_app.py::smoke

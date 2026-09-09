@@ -49,9 +49,12 @@ freellmapi_client_secret = modal.Secret.from_name(
     ],
 )
 
-freellmapi_image = modal.Image.from_registry(
-    FREELLMAPI_IMAGE,
-    add_python="3.12",
+freellmapi_image = (
+    modal.Image.from_registry(FREELLMAPI_IMAGE, add_python="3.12")
+    .add_local_file(
+        "runtime/freellmapi-bootstrap.mjs",
+        "/app/agent-freellmapi-bootstrap.mjs",
+    )
 )
 
 hermes_image = (
@@ -70,30 +73,17 @@ hermes_image = (
 
 
 def _bootstrap_freellmapi_unified_key() -> None:
-    """Make FreeLLMAPI's unified key deterministic for this deployment.
+    """Set the stable unified gateway key using FreeLLMAPI's exported DB API.
 
-    Upstream creates a random unified key during its first DB migration but has
-    no environment-variable override in v0.9.8. We use its exported DB API at
-    the pinned release to initialize the ephemeral DB and set that one setting
-    from the Modal client secret. Bootstrap stdout is suppressed because the
-    upstream first migration intentionally prints its temporary random key.
+    Upstream v0.9.8 generates a temporary random key during its first migration.
+    Bootstrap stdout is suppressed because upstream intentionally prints that
+    temporary key. The pinned shim then overwrites only the unified-key setting.
     """
-    script = r"""
-import { initDb, setSetting } from './server/dist/db/index.js';
-initDb();
-const key = process.env.FREELLMAPI_API_KEY;
-if (!key || !key.startsWith('freellmapi-')) {
-  throw new Error('FREELLMAPI_API_KEY must use the freellmapi- prefix');
-}
-setSetting('unified_api_key', key);
-"""
     completed = subprocess.run(
         [
             "/usr/local/bin/docker-entrypoint.sh",
             "node",
-            "--input-type=module",
-            "-e",
-            script,
+            "/app/agent-freellmapi-bootstrap.mjs",
         ],
         cwd="/app",
         stdout=subprocess.DEVNULL,
@@ -187,5 +177,5 @@ def smoke(
         raise RuntimeError("FreeLLMAPI web URL is unavailable")
     result = run_agent.remote("modal-smoke", objective, gateway_root)
     print(json.dumps(result, indent=2, sort_keys=True))
-    if result.get("status") != "RESULT_READY":
+    if result.get("status") != "CANDIDATE":
         raise SystemExit(1)

@@ -1,306 +1,170 @@
 # Agent Framework Roadmap
 
 **Repository:** `market-predictions/agent`  
-**Architecture:** v0.4 — Evidence-First Hermes + FreeLLMAPI  
+**Architecture:** v0.4 — Hermes + FreeLLMAPI on Modal  
 **Status:** canonical implementation sequence  
 **Date:** 2026-09-09
 
-Hermes is the selected runtime. FreeLLMAPI is the canonical inference gateway from Phase 1. There is no Pydantic AI bake-off, fallback runtime or temporary direct-provider integration.
+Hermes is the selected runtime. FreeLLMAPI is the canonical inference gateway from the first operational carrier. There is no Pydantic AI path or temporary direct-provider integration.
 
 ---
 
 ## Roadmap principle
 
-Build the real target path early, but keep every other dimension as small as possible.
+Build only the next capability that current evidence requires.
 
 ```text
-real Hermes -> FreeLLMAPI path
-        +
-smallest bounded task
+working smallest carrier
         ↓
 measured evidence
         ↓
 next smallest justified capability
 ```
 
-The pilot budget is zero/near-zero. Paid inference is not a hidden fallback.
+Control remains frozen during current Agent implementation.
 
 ---
 
-# Phase 1 — Prove Hermes + FreeLLMAPI
+# Phase 1 — First operational Hermes + FreeLLMAPI carrier
 
-## Objective
+## Status
 
-Prove the actual high-risk hypothesis:
+**IMPLEMENTED AS DEPLOYABLE CANDIDATE; live Modal deployment/smoke evidence pending.**
 
-> Can Hermes complete a short multi-step research task reliably enough when its inference is routed through the real FreeLLMAPI multi-provider free pool?
+## Implemented
 
-## Build
+### Hermes
 
-### Hermes worker
-
-- one Modal Function;
-- pinned Hermes one-shot/headless execution;
-- fixed safe tools only:
-  - `search`;
-  - `web_fetch`;
-- one bounded `PUBLIC_NON_PERSONAL` background-research task;
-- simple structured result;
-- hard model/tool/retry/wall-time counters.
+- exact Hermes `0.21.1` / exact Git commit;
+- one headless one-shot worker;
+- Modal Function, one active container maximum, scale-to-zero;
+- Hermes `web` toolset only (`web_search` / `web_extract` and upstream keyless fallbacks);
+- no shell, browser automation, project writes, delegation, messaging, persistent memory, gateway or Cron;
+- strict task instruction and strict JSON candidate output;
+- wall-time / turns / model-call / concurrency bounds.
 
 ### FreeLLMAPI
 
-- one protected FreeLLMAPI Modal service;
-- pinned FreeLLMAPI build/image;
-- fixed `ENCRYPTION_KEY` in Modal Secrets;
-- provider credentials/config in Modal Secrets;
-- declarative `FREEAPI_CONFIG_JSON` or `FREEAPI_CONFIG_PATH` applied on every cold start;
-- **all providers for which valid configuration/credentials are present are eligible**;
-- no hand-maintained Phase-1 provider subset;
-- max active FreeLLMAPI replica/writer: 1;
-- provider/model/route provenance captured where exposed.
+- exact FreeLLMAPI `0.9.8` image digest;
+- one protected Modal web service;
+- Modal proxy authentication + unified FreeLLMAPI bearer;
+- deterministic stable unified-key bootstrap through FreeLLMAPI's exported DB API;
+- default zero-provider-key declarative pool: keyless Kilo + keyless OVH;
+- optional `FREEAPI_CONFIG_JSON` in Modal Secret for the full desired provider set;
+- upstream provider credentials stay outside Hermes;
+- one active service container maximum, scale-to-zero;
+- no persistent Volume yet.
 
-### Security boundary
+### Verification
 
-Hermes receives only FreeLLMAPI endpoint/client auth. Upstream provider credentials remain in the FreeLLMAPI service.
+CI is required to prove:
 
-## Do not build
+- deterministic tests/compilation;
+- exact Hermes installation;
+- exact FreeLLMAPI image startup;
+- FreeLLM unified-key authentication;
+- real `model=auto` free-model inference with route header;
+- real local Hermes -> FreeLLMAPI -> model -> Hermes web-tool candidate execution.
 
-- direct provider integration;
-- persistent FreeLLMAPI Volume;
-- Sandbox;
-- worker fan-out;
-- task-profile resolver;
-- framework DB/queue;
-- mobile service;
-- project publisher/integration.
+### Deployment
 
-## Test
+- `modal_app.py` is the single Modal topology;
+- `.github/workflows/deploy-modal.yml` is the GitHub deployment route;
+- `docs/OPERATIONS.md` is the operator runbook.
 
-Run the same task 20 times through:
+## Remaining before calling the carrier operational
 
-```text
-Hermes -> FreeLLMAPI -> configured provider pool
-```
+1. configure the two named Modal Secrets and Modal account deployment token outside Git;
+2. deploy `modal_app.py` to the user's Modal workspace;
+3. run `modal run modal_app.py::smoke` successfully;
+4. read back the deployed behavior and align docs if reality differs.
 
-Measure:
+## Remaining before full `AGENT-R1-GAP-01` acceptance
 
-- structured-result success rate;
-- tool-loop completion rate;
-- evidence-supported claim rate;
-- hallucination/unsupported claim rate;
-- model calls/run;
-- tool calls/run;
-- retries/run;
-- FreeLLMAPI route/fallback switches;
-- actual provider/model where observable;
-- provider 429/5xx failures;
-- wall time;
-- human usefulness against manually checked baseline.
+A first operational carrier is not the whole Mission gap. After live deployment:
 
-## Gate
+- resolve exact `max_tool_calls` enforcement if still required and not exposed by stable Hermes usage metadata;
+- run at least 20 measured `PUBLIC_NON_PERSONAL` qualification runs;
+- measure structured success, tool-loop success, supported claims, failures, calls/retries/wall time and route provenance;
+- meet the initial approximately 70% human-usefulness gate or simplify/tune and repeat;
+- exact-head validation;
+- fresh required external review;
+- cleanup and documentation alignment.
 
-Proceed only if:
-
-- approximately >=70% of runs are human-usable as an initial target;
-- failures/routing degradation are explicit;
-- resource/request budgets hold;
-- no provider key reaches Hermes;
-- no disallowed data enters the generic free pool.
-
-If not green:
-
-1. simplify the task;
-2. improve Hermes instruction/tool design;
-3. tune the FreeLLMAPI routing/configuration;
-4. verify protocol/tool-call compatibility;
-5. repeat measurement.
-
-Do not add fan-out merely to compensate for weak single-worker quality.
+Do not add fan-out to mask weak single-worker quality.
 
 ---
 
 # Phase 2 — Trusted evidence verifier
 
-## Objective
+Build one separate trusted Modal Function that accepts only strict structured candidate data and independently re-fetches evidence.
 
-Make worker claims independently checkable.
+Security requirements:
 
-Build one separate trusted Modal Function that:
+- HTTP(S) only;
+- reject localhost/private/loopback/link-local/cloud-metadata destinations;
+- re-resolve/revalidate redirects;
+- byte/time limits;
+- no worker-provided code/scripts/files executed.
 
-- accepts strict structured data only;
-- validates required fields;
-- validates HTTP(S) URL schemes;
-- resolves hosts and rejects loopback/private/link-local/metadata ranges;
-- revalidates redirects;
-- fetches evidence under strict time/byte limits;
-- normalizes text;
-- verifies evidence excerpt/support deterministically where possible.
-
-## Security gate
-
-Test at minimum:
-
-- localhost;
-- `127.0.0.1` / `::1`;
-- RFC1918/private ranges;
-- link-local/cloud metadata ranges;
-- redirect to private range;
-- DNS/re-resolution cases;
-- oversized response;
-- timeout;
-- malformed structured input.
-
-The verifier never executes worker-provided code, scripts, commands or arbitrary files.
-
-`RESULT_READY` is introduced only after this verifier passes.
+Only after this verifier passes does `RESULT_READY` exist. Phase-1 success remains `CANDIDATE`.
 
 ---
 
 # Phase 3 — Prove whether parallelism adds value
 
-Run two independent Hermes workers on the same objective through FreeLLMAPI.
+Compare one Hermes worker with two independent Hermes workers on the same bounded objective.
 
-Purpose: quality/diversity, not just splitting a list.
-
-Measure:
-
-- agreement;
-- unique verified findings;
-- evidence coverage;
-- false positives;
-- provider/model diversity actually obtained;
-- human usefulness;
-- model/tool call increase;
-- compute increase;
-- useful output per unit of compute/inference.
-
-Only standardize fan-out if the second worker materially improves accepted output.
-
-If adopted, Modal owns framework fan-out. Hermes internal delegation remains disabled until hierarchical reasoning itself is independently justified.
+Measure verified quality/coverage uplift versus extra compute/inference. Modal fan-out is adopted only if it materially improves useful output. Hermes recursive delegation remains disabled unless separately justified.
 
 ---
 
-# Phase 4 — Improve FreeLLMAPI persistence only if measured
+# Phase 4 — Persist FreeLLMAPI state only if measured need exists
 
-FreeLLMAPI is already part of the architecture. This phase is only about durable router state.
+Trigger only if cold-start loss of quota/cooldown/analytics state materially harms useful capacity or diagnostics.
 
-## Trigger
+Candidate change: one Modal Volume, one FreeLLMAPI writer.
 
-At least one must be material:
-
-- lost quota/cooldown history after cold starts wastes useful free capacity;
-- loss of router analytics prevents useful diagnostics;
-- cold-start reconfiguration creates measurable operational pain.
-
-## Candidate change
-
-Add exactly one Modal Volume for FreeLLMAPI SQLite state while keeping one active writer/replica.
-
-Do not add:
-
-- Redis;
-- Postgres;
-- horizontal router cluster;
-- multi-writer SQLite.
-
-Keep persistence only if its measured value exceeds the additional lifecycle complexity.
+Do not add Redis, Postgres, horizontal router replicas, or multi-writer SQLite.
 
 ---
 
-# Phase 5 — Capability-specific isolation and profiles
+# Phase 5 — Capability-triggered isolation and profiles
 
-## 5A — Sandbox trigger
+Use Modal Sandbox only when a task class truly requires autonomous shell, generated code, broad filesystem access, repository mutation, or untrusted executable artifacts.
 
-Move a task class from Modal Function to Modal Sandbox only when Hermes must perform:
-
-- generated code execution;
-- autonomous shell;
-- broad filesystem operations;
-- repository mutation;
-- untrusted executable artifacts.
-
-When Sandbox is required, run the whole Hermes process inside it.
-
-## 5B — Task-profile trigger
-
-Introduce Git-backed task profiles only when at least two materially different capability/data classes exist, for example:
-
-```text
-public non-personal research
-vs.
-repository code work
-```
-
-Until then least privilege is hardcoded in the one worker configuration.
+Introduce Git-backed task profiles only when at least two materially different capability/data classes exist. Until then least privilege stays hardcoded in the one worker.
 
 ---
 
 # Phase 6 — Caller/project integration
 
-Only after the carrier is measured and verified.
+Integrate the proven carrier result-only with a bounded real caller.
 
-## Control
+- no second Control state/queue/scheduler;
+- no target-project business-state duplication;
+- no production write credential in Hermes;
+- `RESULT_READY` remains separate from caller/business `DONE`.
 
-```text
-Control
-  -> bounded task
-  -> Agent carrier
-  -> RESULT_READY
-  -> Control acceptance/successor
-```
-
-No second Control state machine, queue or scheduler.
-
-## SolidDesign
-
-Person-linked prospect data is not sent through the generic free pool by default. First integration requires an explicit data/inference policy and starts result-only with no production DB writes.
-
-## Scrub
-
-Initial integrations use synthetic/public non-sensitive data. Unredacted sensitive care/legal data remains outside the generic free pool.
-
-## Publisher
-
-Add one narrow project-specific publisher only after repeated handoff proves value. It remains separate from Hermes and accepts only independently verified results.
+SolidDesign person-linked prospect data is not eligible for the generic free lane without a new data/inference policy. Scrub initially uses synthetic/public non-sensitive data only.
 
 ---
 
 # Phase 7 — Mobile / interactive Hermes
 
-## Product intent
+After the bounded carrier is proven, build a separate authenticated interactive Hermes service reachable from a phone/mobile client.
 
-After the bounded worker carrier is proven, make a dedicated Hermes instance controllable from a phone/mobile client.
-
-FreeLLMAPI remains the shared inference boundary.
+Target:
 
 ```text
-phone / mobile client
-        |
-        v
-authenticated Modal endpoint
-        |
-        v
-dedicated interactive Hermes service
-        |
-        +--> persistent session/memory state
-        |
-        v
-protected FreeLLMAPI
-        |
-        v
-configured provider pool
+phone/mobile client
+  -> authenticated cloud endpoint
+  -> dedicated interactive Hermes
+  -> protected FreeLLMAPI
+  -> configured provider pool
 ```
 
-Design separately:
-
-- authentication;
-- Hermes state/home persistence;
-- one-user concurrency;
-- cold starts;
-- memory scope;
-- mobile approval UX;
-- how interactive Hermes can request bounded framework tasks without becoming Control/project authority.
+Design session/memory persistence, single-user concurrency, cold starts, authentication and approval UX separately. Interactive state must not become Control state, framework task state or target-project business truth.
 
 ---
 
@@ -308,28 +172,20 @@ Design separately:
 
 At every phase:
 
-- GitHub remains source of truth;
-- pin Hermes, FreeLLMAPI, Modal SDK and important dependencies;
-- record provider/model/route provenance where observable;
-- bound model calls, tool calls, retries, wall time and concurrency;
-- budget exhaustion fails closed;
-- provider secrets stay outside Hermes;
-- only approved data classes enter the generic free-provider pool;
-- deterministic work stays deterministic;
-- remove superseded code/config/docs;
-- keep README, architecture, roadmap and deployed behavior aligned.
+- GitHub is code/config/docs truth; Modal is runtime;
+- fresh-read the Execution & Engineering Constitution for consequential work;
+- pin correctness-relevant software;
+- preserve FreeLLMAPI as the sole inference boundary;
+- keep provider credentials outside Hermes;
+- generic free lane stays `PUBLIC_NON_PERSONAL`;
+- bound model calls/turns, wall time, retries and concurrency;
+- fail closed instead of silently using paid capacity;
+- deterministic work remains deterministic;
+- delete superseded code/config/docs;
+- keep README, architecture, roadmap, operations and actual behavior aligned.
 
 ---
 
 # Definition of Done
 
-A phase is Done only when:
-
-- its objective is achieved;
-- relevant behavior is verified;
-- failure/security boundaries are exercised;
-- evidence and usage metrics are captured;
-- unnecessary parallel implementation is absent/removed;
-- stale code/config/docs are removed;
-- README, architecture, roadmap and actual behavior agree;
-- no known material inconsistency is knowingly left behind.
+A phase is Done only when its actual outcome works, relevant failure/security boundaries are exercised, evidence exists, obsolete implementation is removed, and all current documentation agrees with reality.

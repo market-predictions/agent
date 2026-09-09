@@ -82,7 +82,7 @@ Hermes selected runtime
   -> repository CI for tests + bounded dry-run validation
 ```
 
-Current exact candidate CI is green: Agent CI run `34398714142` completed successfully on candidate commit `1f60403093966aa4ee8afaa2f3e31da09d1684fc`.
+Repository CI is active on the bootstrap branch and the latest observed run at this snapshot passed. Exact current head/check status must be read from the live PR rather than hard-coded here.
 
 The candidate does **not** claim that Hermes, FreeLLMAPI or Modal are deployed or that GAP-01 acceptance is satisfied.
 

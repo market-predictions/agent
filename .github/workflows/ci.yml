@@ -63,11 +63,16 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
-      - name: Install exact Hermes commit and exact web backends
+      - name: Install exact Hermes commit through upstream-supported source path
         run: |
-          HERMES_SPEC="$(python -c 'import runtime_versions; print(runtime_versions.HERMES_GIT_SPEC)')"
+          set -euo pipefail
+          HERMES_REPO="$(python -c 'import runtime_versions; print(runtime_versions.HERMES_REPOSITORY)')"
+          HERMES_COMMIT="$(python -c 'import runtime_versions; print(runtime_versions.HERMES_COMMIT)')"
+          git clone --filter=blob:none "$HERMES_REPO" /tmp/hermes-agent
+          git -C /tmp/hermes-agent checkout --detach "$HERMES_COMMIT"
+          test "$(git -C /tmp/hermes-agent rev-parse HEAD)" = "$HERMES_COMMIT"
+          python -m pip install --disable-pip-version-check -e /tmp/hermes-agent
           python -m pip install --disable-pip-version-check \
-            "$HERMES_SPEC" \
             'exa-py==2.10.2' \
             'firecrawl-py==4.17.0' \
             'parallel-web==0.4.2'

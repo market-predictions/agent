@@ -43,7 +43,7 @@ MODAL_TOKEN_ID
 MODAL_TOKEN_SECRET
 ```
 
-The repository and current connected tools cannot create, recover, or read this account credential. The automatic deployment path has already demonstrated that these values are currently absent from GitHub, so no live Modal deployment is claimed.
+The repository and current connected tools cannot create, recover, or read this account credential. An earlier deployment attempt already demonstrated that these values are currently absent from GitHub, so no live Modal deployment is claimed.
 
 Create/manage the token through Modal's normal account/CLI flow, then store both values as GitHub Actions secrets with exactly those names. Never commit them.
 
@@ -96,21 +96,23 @@ Without `FREEAPI_CONFIG_JSON`, the Git-controlled default config uses keyless Ki
 
 If additional providers are later needed, add one complete declarative `FREEAPI_CONFIG_JSON` to `agent-freellmapi`. FreeLLMAPI gives inline JSON precedence over the file path, so that JSON becomes the complete startup config and must include every provider that should remain eligible. Store real provider keys only in the Modal Secret.
 
-## 6. Deploy the same proven carrier
+## 6. Promote to Modal
 
-Preferred route after merge to `main`:
+The canonical cloud promotion workflow is:
 
 ```text
 .github/workflows/deploy-modal.yml
 ```
 
-It:
+It is **workflow-dispatch only** while the external account token is absent. Once the GitHub token secrets and the two named Modal Secrets exist, dispatch the workflow with `run_smoke=true`.
+
+It then:
 
 1. checks out source with no persisted GitHub credential;
 2. installs the pinned Modal CLI;
 3. fails closed if the Modal account token is absent;
 4. deploys `modal_app.py`;
-5. runs the remote smoke after a `main` push, or when requested by explicit dispatch.
+5. runs the remote smoke when requested.
 
 Manual equivalent from an authenticated machine:
 

@@ -5,7 +5,6 @@ on:
   push:
     branches:
       - main
-      - bootstrap/agent-r1-gap-01
 
 permissions:
   contents: read
@@ -46,6 +45,7 @@ jobs:
           assert plan['data_class'] == 'PUBLIC_NON_PERSONAL'
           assert plan['agent_runtime'] == 'hermes'
           assert plan['inference_gateway'] == 'freellmapi'
+          assert plan['provider'] == 'freellmapi'
           assert plan['model'] == 'auto'
           assert plan['toolsets'] == ['web']
           assert plan['budget']['max_concurrent_tasks'] == 1

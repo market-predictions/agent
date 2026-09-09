@@ -1,0 +1,46 @@
+name: Deploy Agent to Modal
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_smoke:
+        description: Run one real Hermes -> FreeLLMAPI smoke test after deploy
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-modal-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: agent-modal
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Install pinned Modal CLI
+        run: python -m pip install --disable-pip-version-check -r requirements.txt
+      - name: Refuse missing deployment credentials
+        run: |
+          test -n "$MODAL_TOKEN_ID"
+          test -n "$MODAL_TOKEN_SECRET"
+      - name: Deploy pinned runtime
+        run: modal deploy modal_app.py
+      - name: End-to-end smoke
+        if: ${{ inputs.run_smoke }}
+        run: modal run modal_app.py::smoke

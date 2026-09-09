@@ -205,7 +205,7 @@ Phase 2 may add `PARTIAL` and `RESULT_READY` after independent evidence verifica
 
 The expensive live model proof runs on pull requests and on merged `main`, not twice for both branch push and PR.
 
-`.github/workflows/deploy-modal.yml` is the only Modal deployment path. It runs on explicit dispatch or `main` and fails closed if `MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET` are absent. Provider credentials remain in Modal Secrets, not GitHub or Hermes.
+`.github/workflows/deploy-modal.yml` is the only Modal deployment path and is explicit-dispatch only while account credentials are absent. It fails closed if `MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET` are missing. Provider credentials remain in Modal Secrets, not GitHub or Hermes.
 
 ---
 

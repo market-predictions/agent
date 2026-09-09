@@ -14,7 +14,6 @@ import urllib.request
 
 import modal
 
-import agent_carrier
 from runtime_versions import (
     FREELLMAPI_IMAGE,
     FREELLMAPI_PORT,
@@ -56,10 +55,13 @@ freellmapi_client_secret = modal.Secret.from_name(
 # before exec'ing its command. Modal owns the container entrypoint for Function
 # images, so clear the upstream ENTRYPOINT and invoke its helper explicitly from
 # the function below. This also keeps Modal's runtime bootstrap running as root.
+# The app module imports runtime_versions, so that tiny module must be present in
+# this image as well as the Hermes image when Modal hydrates the web function.
 freellmapi_image = (
     modal.Image.from_registry(FREELLMAPI_IMAGE, add_python="3.12")
     .entrypoint([])
     .env({"FREEAPI_CONFIG_PATH": "/app/agent-freellmapi-default.json"})
+    .add_local_python_source("runtime_versions")
     .add_local_file(
         "runtime/freellmapi-bootstrap.mjs",
         "/app/agent-freellmapi-bootstrap.mjs",
@@ -177,6 +179,8 @@ def _probe_gateway(gateway_root: str) -> None:
 )
 def run_agent(task_id: str, objective: str, gateway_root: str) -> dict:
     """Run one bounded headless Hermes task through protected FreeLLMAPI."""
+    import agent_carrier
+
     gateway_root = gateway_root.rstrip("/")
     _probe_gateway(gateway_root)
     return agent_carrier.execute_once(

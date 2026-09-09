@@ -4,11 +4,9 @@ Standalone bounded autonomous-agent execution framework for Control and multiple
 
 The repository is intentionally **not** a project database, Control replacement, scheduler, queue, or project-specific extension.
 
-## Current target model — v0.3 Evidence-First Hermes
+## Current target model — v0.4 Evidence-First Hermes + FreeLLMAPI
 
-Hermes is the selected agent runtime. There is no Pydantic AI bake-off or fallback in this phase.
-
-The first proof deliberately starts smaller than the eventual swarm architecture:
+Hermes is the selected agent runtime and FreeLLMAPI is part of the inference path from the first proof. There is no Pydantic AI bake-off or temporary direct-provider integration.
 
 ```text
 human / caller
@@ -21,7 +19,12 @@ Modal Function
      | fixed safe tools
      | hard model/tool/time budgets
      v
-one direct approved free provider
+protected FreeLLMAPI service
+     |
+     | all configured providers eligible
+     | routing/failover observed
+     v
+free provider pool
      |
      v
 structured candidate result
@@ -36,27 +39,19 @@ RESULT_READY
 caller / project authority
 ```
 
-Only measured limitations earn the next layers:
-
-```text
-single-worker proof
-    -> evidence verifier
-    -> two-worker diversity experiment
-    -> FreeLLMAPI if quota/failover/diversity need is measured
-    -> Modal Sandbox when shell/generated-code capability is required
-    -> task profiles when a second capability class exists
-    -> Control/project integration
-    -> mobile interactive Hermes
-```
+Phase 1 deliberately keeps everything else small: one Hermes worker, no fan-out, no Sandbox, no project writes, no framework DB/queue, no persistent Hermes memory and no task-profile framework yet.
 
 Core principles:
 
 - **Hermes is the chosen runtime.**
+- **FreeLLMAPI is the canonical inference gateway from Phase 1.**
+- **All configured FreeLLMAPI providers are eligible; no hand-maintained Phase-1 provider subset.**
 - **GitHub is current truth; Modal is runtime.**
-- **Evidence before infrastructure.**
-- **No production credentials in workers.**
+- **Evidence before further infrastructure.**
+- **No production credentials in workers.** Provider credentials live in the FreeLLMAPI service.
 - **Public does not automatically mean non-personal.**
 - **Model calls, tool calls, retries, wall time and concurrency are bounded.**
+- **Provider/model routing and route switches are recorded where observable.**
 - **Independent verification is separate from generation.**
 - **`RESULT_READY` is not business `DONE`.**
 - **No DB, queue, generic scheduler, publisher or recursive swarm before measured need.**

@@ -76,7 +76,7 @@ This project is **Control-managed** under the canonical Control V4 Mission and r
 
 Only the adopted Mission may materialize governed gaps. The roadmap explains implementation sequence but does not create Control work by itself.
 
-**Current handoff blocker:** current Control V4 materializes a new root with no candidate and its bound Runner always YIELDs candidate-less BUILD. It does not automatically bind an already-open bootstrap PR. Therefore Agent is onboarded and PR #1 exists, but autonomous REPAIR/REVIEW takeover cannot start until a governed existing-candidate binding is available. Do not solve this by silently adding candidate-less BUILD.
+**Current handoff boundary:** current Control V4 materializes a new root with no candidate and its bound Runner always YIELDs candidate-less BUILD. It does not automatically bind an already-open bootstrap PR. The working Control runtime is therefore treated as a frozen baseline: Agent will not introduce a second scheduler, semantic worker, queue, polling bridge or synthetic Control event source merely to bypass that limitation. PR #1 remains the bounded bootstrap candidate while Agent is hardened project-locally. Autonomous Control takeover is deferred until the canonical Control interface can represent that handoff without parallel machinery.
 
 Canonical architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)  
 Canonical implementation sequence: [`docs/ROADMAP.md`](docs/ROADMAP.md)  

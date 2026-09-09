@@ -9,10 +9,8 @@ MODAL_VERSION = "1.5.5"
 HERMES_VERSION = "0.21.1"
 HERMES_TAG = "v2026.9.7"
 HERMES_COMMIT = "2237be355906fbe6065ce1815711eee52b2d646e"
-HERMES_GIT_SPEC = (
-    "git+https://github.com/NousResearch/hermes-agent.git@"
-    f"{HERMES_COMMIT}"
-)
+HERMES_REPOSITORY = "https://github.com/NousResearch/hermes-agent.git"
+HERMES_SOURCE_DIR = "/opt/hermes-agent"
 
 FREELLMAPI_VERSION = "0.9.8"
 FREELLMAPI_IMAGE = (

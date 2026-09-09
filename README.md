@@ -67,7 +67,7 @@ The integration proof performs both a direct real FreeLLMAPI `model=auto` call w
 
 The code is deployment-ready, but **live Modal deployment is not yet a proven fact** because the account-owned `MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET` are absent from GitHub. The repository cannot create or recover those credentials. Exact setup and smoke commands are in [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
 
-`.github/workflows/deploy-modal.yml` deploys only from `main` or explicit dispatch and fails closed when account credentials are missing.
+`.github/workflows/deploy-modal.yml` is an explicit-dispatch promotion workflow and fails closed when account credentials are missing. It intentionally does not run on every `main` push while those external credentials are absent.
 
 ## Verification
 

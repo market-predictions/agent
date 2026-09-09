@@ -62,9 +62,9 @@ The current output authority is `CANDIDATE`. `RESULT_READY` does not exist until
 
 The repository contains the complete selected Modal topology and deployment workflow. A live cloud deployment is **not** current fact.
 
-Observed deployment prerequisite failure: GitHub does not currently contain the account-owned `MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET`, so deployment stops before `modal deploy`. The repository and connected tools cannot create or recover the user's Modal account token. Named runtime Secrets are documented in `docs/OPERATIONS.md` and must remain outside Git.
+Observed deployment prerequisite failure: GitHub does not currently contain the account-owned `MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET`, so deployment stopped before `modal deploy`. The repository and connected tools cannot create or recover the user's Modal account token. Named runtime Secrets are documented in `docs/OPERATIONS.md` and must remain outside Git.
 
-The deployment workflow now runs from `main` or explicit dispatch only; candidate commits no longer create repeated credential-failure jobs.
+The deployment workflow is now explicit-dispatch only while those credentials are absent. Candidate and `main` CI therefore remain focused on the proven carrier instead of producing repeated known credential failures.
 
 ## Verification facts
 

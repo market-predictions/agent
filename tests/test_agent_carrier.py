@@ -22,36 +22,36 @@ class AgentCarrierTests(unittest.TestCase):
         with self.assertRaises(agent_carrier.CarrierConfigError):
             agent_carrier.validate_freellmapi_base_url("not-a-url")
 
-    def test_hermes_config_routes_only_through_freellmapi_and_modal_proxy(self):
+    def test_hermes_config_uses_named_freellmapi_provider_and_modal_proxy(self):
         config = agent_carrier.render_hermes_config("https://freellm.example/v1")
-        self.assertIn('provider: "custom"', config)
-        self.assertIn('model: "auto"', config)
+        self.assertIn('provider: "freellmapi"', config)
+        self.assertIn("providers:\n  freellmapi:", config)
+        self.assertIn('default: "auto"', config)
+        self.assertIn('default_model: "auto"', config)
         self.assertIn('api_mode: "chat_completions"', config)
         self.assertIn("https://freellm.example/v1", config)
         self.assertIn("FREELLMAPI_API_KEY", config)
         self.assertIn("${MODAL_PROXY_KEY}", config)
         self.assertIn("${MODAL_PROXY_SECRET}", config)
         self.assertIn("keyless_fallback: true", config)
+        self.assertNotIn("model_aliases", config)
         self.assertNotIn("OPENAI_API_KEY", config)
         self.assertNotIn("ANTHROPIC_API_KEY", config)
         self.assertNotIn("GEMINI_API_KEY", config)
         self.assertNotIn("sk-", config)
 
-    def test_command_respects_hermes_parser_boundaries_and_is_web_only(self):
+    def test_command_uses_top_level_script_oneshot_and_web_only(self):
         command = agent_carrier.build_hermes_command(
-            prompt_file=Path("prompt.txt"),
+            prompt="Research a public technical standard.",
             usage_file=Path("usage.json"),
             budget=agent_carrier.Budget(),
         )
-        chat_index = command.index("chat")
-        usage_index = command.index("--usage-file")
-        query_index = command.index("--query-file")
-        max_turns_index = command.index("--max-turns")
         self.assertEqual(command[0:2], ["hermes", "--ignore-rules"])
-        self.assertLess(usage_index, chat_index)
-        self.assertGreater(query_index, chat_index)
-        self.assertGreater(max_turns_index, chat_index)
+        self.assertNotIn("chat", command)
+        self.assertEqual(command[command.index("--provider") + 1], "freellmapi")
+        self.assertEqual(command[command.index("--model") + 1], "auto")
         self.assertEqual(command[command.index("--toolsets") + 1], "web")
+        self.assertEqual(command[command.index("-z") + 1], "Research a public technical standard.")
         self.assertNotIn("terminal", command)
         self.assertNotIn("file", command)
         self.assertNotIn("browser", command)
@@ -77,6 +77,7 @@ class AgentCarrierTests(unittest.TestCase):
         self.assertEqual(plan["data_class"], "PUBLIC_NON_PERSONAL")
         self.assertEqual(plan["agent_runtime"], "hermes")
         self.assertEqual(plan["inference_gateway"], "freellmapi")
+        self.assertEqual(plan["provider"], "freellmapi")
         self.assertEqual(plan["model"], "auto")
         self.assertEqual(plan["toolsets"], ["web"])
 
@@ -138,7 +139,7 @@ class AgentCarrierTests(unittest.TestCase):
                 "api_calls": 2,
                 "completed": True,
                 "failed": False,
-                "provider": "custom",
+                "provider": "freellmapi",
                 "model": "auto",
             },
             agent_carrier.Budget(),

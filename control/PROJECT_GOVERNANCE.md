@@ -21,6 +21,17 @@ It does **not** grant Control authority and it is **not** Control runtime state.
 
 The project-local purpose is to make the repository self-describing enough that a Control task can be executed without relying on chat memory or narrative handover.
 
+## Mandatory cross-project engineering doctrine
+
+All consequential architecture, engineering, implementation, refactoring, debugging, documentation and roadmap work in this repository must fresh-read and apply the canonical Google Drive document:
+
+**Execution & Engineering Constitution**  
+https://docs.google.com/document/d/1Zf9DvT282-EDsU-SoXinJKQX5LcQC2wabkoTL0doDh0/edit
+
+This document is the mandatory cross-project operating doctrine. It is not a second Control semantic authority source: Control Mission/repository/runtime authority still determines **what work is authorized**, while the Constitution governs **how engineering work is approached and executed**. Project-local architecture and implementation may narrow the doctrine for this project but may not silently contradict it.
+
+If the Constitution cannot be read when consequential project work requires it, do not substitute chat memory or a local paraphrase as if it were current canonical doctrine; report the missing dependency and limit work to actions that do not depend on that doctrine.
+
 ## Canonical authority once adopted
 
 ```text
@@ -35,6 +46,10 @@ market-predictions/control-plane:control/missions/AGENT_FRAMEWORK.mission.json
 
 Repository authority candidate/current path:
 market-predictions/control-plane:control/repository-authority/market-predictions__agent.json
+
+Mandatory cross-project engineering doctrine:
+Google Drive — Execution & Engineering Constitution
+https://docs.google.com/document/d/1Zf9DvT282-EDsU-SoXinJKQX5LcQC2wabkoTL0doDh0/edit
 
 Project-local architecture:
 docs/ARCHITECTURE.md
@@ -102,14 +117,17 @@ A bounded non-production Modal proof using `PUBLIC_NON_PERSONAL` data is within 
 Before consequential work on a Control-governed gap, fresh-read the smallest sufficient current evidence in this order:
 
 1. current Control V4 mandatory authority sources from `control/SYSTEM_INDEX.md`;
-2. current `AGENT_FRAMEWORK` Mission Contract;
-3. current `market-predictions__agent` repository-authority record;
-4. canonical Control runtime queue when lifecycle state is relevant;
-5. this `control/PROJECT_GOVERNANCE.md`;
-6. `control/CURRENT_STATE.md` for project-local implementation facts only;
-7. `docs/ARCHITECTURE.md`;
-8. `docs/ROADMAP.md`;
-9. only the code, tests, PR, CI, review and external evidence required for the selected gap.
+2. the current Google Drive **Execution & Engineering Constitution**;
+3. current `AGENT_FRAMEWORK` Mission Contract;
+4. current `market-predictions__agent` repository-authority record;
+5. canonical Control runtime queue when lifecycle state is relevant;
+6. this `control/PROJECT_GOVERNANCE.md`;
+7. `control/CURRENT_STATE.md` for project-local implementation facts only;
+8. `docs/ARCHITECTURE.md`;
+9. `docs/ROADMAP.md`;
+10. only the code, tests, PR, CI, review and external evidence required for the selected gap.
+
+The Constitution read is mandatory; a remembered summary or copied excerpt does not substitute for the current Google Drive source.
 
 Do not route work from chat history, handovers, README prose or roadmap ordering when they conflict with current Mission/repository authority.
 
@@ -129,17 +147,18 @@ No review policy creates production deployment, customer-data, paid-provider or 
 Current truth per concern:
 
 ```text
-Control governed intent          -> canonical Mission Contract
-Control repository restrictions  -> repository-authority record
-Control lifecycle                -> canonical Control V4 runtime queue
-Project architecture             -> docs/ARCHITECTURE.md
-Project implementation sequence  -> docs/ROADMAP.md
-Project implementation facts     -> live repository + control/CURRENT_STATE.md as bounded summary
-Historical design rationale      -> docs/DESIGN_REVIEW_10_ITERATIONS.md
-Git history                      -> archive/audit history
+Cross-project engineering doctrine -> Google Drive Execution & Engineering Constitution
+Control governed intent             -> canonical Mission Contract
+Control repository restrictions     -> repository-authority record
+Control lifecycle                   -> canonical Control V4 runtime queue
+Project architecture                -> docs/ARCHITECTURE.md
+Project implementation sequence     -> docs/ROADMAP.md
+Project implementation facts        -> live repository + control/CURRENT_STATE.md as bounded summary
+Historical design rationale         -> docs/DESIGN_REVIEW_10_ITERATIONS.md
+Git history                         -> archive/audit history
 ```
 
-Do not create a second Mission mirror or local runtime queue in this repository.
+Do not create a local copy of the Constitution as a competing canonical doctrine, a second Mission mirror or a local runtime queue in this repository.
 
 ## Definition of Done
 
@@ -152,5 +171,6 @@ At project level, cleanup is part of Done:
 - remove superseded code/configuration;
 - remove stale or conflicting current documentation;
 - keep README, architecture, roadmap and actual behavior aligned;
+- preserve the live reference/read obligation to the canonical Execution & Engineering Constitution;
 - do not preserve obsolete execution state as a second current state plane;
 - do not knowingly leave a material inconsistency behind.

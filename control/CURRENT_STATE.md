@@ -1,6 +1,6 @@
 # Agent Framework — Current Project Facts
 
-**Observed at:** 2026-09-09 21:27 Europe/Amsterdam  
+**Observed at:** 2026-09-09 22:00 Europe/Amsterdam  
 **Repository:** `market-predictions/agent`  
 **Status type:** project-local implementation snapshot only  
 **Control runtime/status authority:** **no**
@@ -24,7 +24,8 @@ framework_queue_present=false
 production_project_write_authority=false
 control_management_status=CONTROL_MANAGED
 bootstrap_candidate_pr=1
-bootstrap_handoff_status=CANDIDATE_BINDING_BLOCKED
+bootstrap_candidate_ci=PASS
+bootstrap_handoff_status=DEFERRED_ON_FROZEN_CONTROL_BASELINE
 ```
 
 ## Current product decisions
@@ -56,6 +57,14 @@ Post-adoption readback confirmed both authority files on `market-predictions/con
 
 Current Control lifecycle/status must be read from Control's canonical V4 runtime sources, not inferred from this file.
 
+## Stable-Control boundary
+
+The current Control V4 runtime is treated as a frozen working baseline. Agent must conform to that interface; Agent onboarding convenience is not sufficient reason to reopen Control runtime semantics.
+
+No Agent-side workaround may create a second scheduler, semantic worker, queue/state plane, polling bridge, synthetic Control event source, or other path that impersonates the canonical Runner.
+
+If current Control cannot safely bind an Agent candidate without such a workaround, the handoff is deferred rather than solved by adding parallel architecture.
+
 ## Bootstrap candidate
 
 Agent PR #1 (`bootstrap/agent-r1-gap-01`) is the intentionally small implementation candidate for `AGENT-R1-GAP-01`.
@@ -70,13 +79,14 @@ Hermes selected runtime
   -> read-only Hermes web toolset
   -> one-task budget envelope
   -> local boundary tests
+  -> repository CI for tests + bounded dry-run validation
 ```
 
-The candidate code has been independently verified with six passing stdlib unit tests and successful dry-run plan generation. It does **not** claim that Hermes, FreeLLMAPI or Modal are deployed or that GAP-01 acceptance is satisfied.
+Current exact candidate CI is green: Agent CI run `34398714142` completed successfully on candidate commit `1f60403093966aa4ee8afaa2f3e31da09d1684fc`.
 
-## Current bootstrap handoff blocker
+The candidate does **not** claim that Hermes, FreeLLMAPI or Modal are deployed or that GAP-01 acceptance is satisfied.
 
-The intended handoff is not yet executable end-to-end with current Control V4.
+## Current bootstrap handoff boundary
 
 Current deterministic V4 materialization creates a newly eligible root task with:
 
@@ -91,11 +101,11 @@ The currently bound Runner has the explicit rule:
 BUILD: candidate-less BUILD always YIELDs
 ```
 
-Current carrier V1 does not automatically discover or bind the already-open Agent PR #1 to that task. Therefore the project is Control-managed and the bootstrap candidate exists, but Control cannot yet enter autonomous REPAIR/REVIEW on that candidate.
+Carrier V1 can validate `CANDIDATE_READY` only after the canonical Runner owns the exact current BUILD/REPAIR holder. It does not discover or bind Agent PR #1 by reading repository-local metadata.
 
-The smallest missing capability is **existing-candidate binding**: validate a pre-existing governed target PR and bind it through existing `CANDIDATE_READY` semantics. This should not create code/branches/PRs, a second queue/state plane, or generic candidate-less BUILD.
+Therefore there is no sound Agent-only mechanism that makes Control autonomously bind PR #1 without introducing an unauthorized second semantic actor or transport path. Such a workaround is intentionally not built.
 
-Until that binding is governed and available, do not claim that Control has taken over GAP-01 implementation.
+Agent PR #1 remains the bounded bootstrap candidate while the Control baseline stabilizes. Do not claim that Control has taken over GAP-01 implementation until the canonical Control interface itself can represent that handoff without parallel machinery.
 
 ## First governed gap
 

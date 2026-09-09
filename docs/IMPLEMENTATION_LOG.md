@@ -133,9 +133,9 @@ This establishes a real operational carrier, not a mock/dry-run-only implementat
 
 `modal_app.py` contains one protected FreeLLMAPI service and one bounded Hermes Function, both scale-to-zero and capped at one active container in Phase 1. `.github/workflows/deploy-modal.yml` is the only cloud deployment path.
 
-The automatic deployment attempt correctly failed before deployment because the external account-bound GitHub secrets `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` are absent. No connected tool exposes or can manufacture the user's Modal account credentials.
+An automatic deployment attempt correctly failed before deployment because the external account-bound GitHub secrets `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` are absent. No connected tool exposes or can manufacture the user's Modal account credentials.
 
-The workflow was therefore simplified to deploy only from `main` or explicit manual dispatch instead of failing on every candidate commit.
+The deployment workflow is therefore explicit-dispatch only while those credentials are absent. This keeps normal `main` verification green and makes cloud promotion deliberate; when the account token and named Modal Secrets exist, one dispatch performs deploy + smoke.
 
 ### 11. Removed duplicate live-provider CI work
 

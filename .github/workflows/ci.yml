@@ -53,7 +53,7 @@ jobs:
 
   upstream-runtime:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -63,19 +63,25 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
-      - name: Install exact Hermes commit
+      - name: Install exact Hermes commit and exact web backends
         run: |
           HERMES_SPEC="$(python -c 'import runtime_versions; print(runtime_versions.HERMES_GIT_SPEC)')"
-          python -m pip install --disable-pip-version-check "$HERMES_SPEC"
+          python -m pip install --disable-pip-version-check \
+            "$HERMES_SPEC" \
+            'exa-py==2.10.2' \
+            'firecrawl-py==4.17.0' \
+            'parallel-web==0.4.2'
           hermes --version
       - name: Pull exact FreeLLMAPI image digest
         run: |
           IMAGE="$(python -c 'import runtime_versions; print(runtime_versions.FREELLMAPI_IMAGE)')"
           docker pull "$IMAGE"
-      - name: Boot FreeLLMAPI and prove unified-key authentication
+      - name: Boot FreeLLMAPI and prove gateway, model, and Hermes path
         env:
           ENCRYPTION_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           FREELLMAPI_API_KEY: freellmapi-ci-integration-key
+          MODAL_PROXY_KEY: wk-ci-local
+          MODAL_PROXY_SECRET: ws-ci-local
         run: |
           set -euo pipefail
           IMAGE="$(python -c 'import runtime_versions; print(runtime_versions.FREELLMAPI_IMAGE)')"
@@ -87,15 +93,17 @@ jobs:
             -p 3001:3001 \
             -e ENCRYPTION_KEY \
             -e FREELLMAPI_API_KEY \
+            -e FREEAPI_CONFIG_PATH=/app/agent-freellmapi-default.json \
             -v "$PWD/runtime/freellmapi-bootstrap.mjs:/app/agent-freellmapi-bootstrap.mjs:ro" \
+            -v "$PWD/runtime/freellmapi.default.json:/app/agent-freellmapi-default.json:ro" \
             "$IMAGE" \
             sh -lc 'node /app/agent-freellmapi-bootstrap.mjs >/dev/null && exec node server/dist/index.js'
 
-          for attempt in $(seq 1 30); do
+          for attempt in $(seq 1 45); do
             if curl --fail --silent http://127.0.0.1:3001/api/ping >/dev/null; then
               break
             fi
-            if [ "$attempt" -eq 30 ]; then
+            if [ "$attempt" -eq 45 ]; then
               docker logs agent-freeapi-ci
               exit 1
             fi
@@ -116,4 +124,38 @@ jobs:
           body = json.loads(Path('/tmp/models.json').read_text())
           assert body['object'] == 'list'
           assert any(item.get('id') == 'auto' for item in body['data'])
+          PY
+
+          curl --fail --silent --show-error --max-time 180 \
+            -D /tmp/model-headers.txt \
+            -H "Authorization: Bearer $FREELLMAPI_API_KEY" \
+            -H 'Content-Type: application/json' \
+            http://127.0.0.1:3001/v1/chat/completions \
+            -d '{"model":"auto","messages":[{"role":"user","content":"Reply with one short sentence confirming you can answer."}],"max_tokens":64,"stream":false}' \
+            > /tmp/model.json
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          body = json.loads(Path('/tmp/model.json').read_text())
+          text = body['choices'][0]['message'].get('content') or ''
+          assert text.strip(), body
+          headers = Path('/tmp/model-headers.txt').read_text().lower()
+          assert 'x-routed-via:' in headers, headers
+          PY
+
+          python agent_carrier.py \
+            --execute \
+            --task-id ci-real-hermes \
+            --objective "Find one public technical fact about HTTP semantics and cite the public source you looked up." \
+            --freellmapi-base-url http://127.0.0.1:3001/v1 \
+            > /tmp/hermes-result.json
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          result = json.loads(Path('/tmp/hermes-result.json').read_text())
+          assert result['status'] == 'CANDIDATE', result
+          assert result['result']['claims'], result
+          assert result['usage'] is None or result['usage'].get('api_calls', 0) >= 2, result
           PY

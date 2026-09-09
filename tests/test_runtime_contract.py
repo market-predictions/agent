@@ -13,7 +13,11 @@ class RuntimeContractTests(unittest.TestCase):
         self.assertEqual(runtime_versions.MODAL_VERSION, "1.5.5")
         self.assertEqual(runtime_versions.HERMES_VERSION, "0.21.1")
         self.assertRegex(runtime_versions.HERMES_COMMIT, r"^[0-9a-f]{40}$")
-        self.assertIn(runtime_versions.HERMES_COMMIT, runtime_versions.HERMES_GIT_SPEC)
+        self.assertEqual(
+            runtime_versions.HERMES_REPOSITORY,
+            "https://github.com/NousResearch/hermes-agent.git",
+        )
+        self.assertEqual(runtime_versions.HERMES_SOURCE_DIR, "/opt/hermes-agent")
         self.assertEqual(runtime_versions.FREELLMAPI_VERSION, "0.9.8")
         self.assertRegex(
             runtime_versions.FREELLMAPI_IMAGE,
@@ -25,8 +29,10 @@ class RuntimeContractTests(unittest.TestCase):
         self.assertIn("requires_proxy_auth=True", source)
         self.assertIn("max_containers=1", source)
         self.assertIn("min_containers=0", source)
-        self.assertIn("HERMES_GIT_SPEC", source)
+        self.assertIn("HERMES_COMMIT", source)
+        self.assertIn("pip install --disable-pip-version-check -e", source)
         self.assertIn("FREELLMAPI_IMAGE", source)
+        self.assertIn("agent-freellmapi-default.json", source)
         self.assertNotIn("modal.Volume", source)
         self.assertNotIn("modal.Sandbox", source)
         self.assertNotIn("Pydantic", source)

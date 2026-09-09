@@ -25,7 +25,7 @@ jobs:
       - name: Install pinned deployment tooling
         run: python -m pip install --disable-pip-version-check -r requirements.txt
       - name: Compile Python
-        run: python -m compileall -q agent_carrier.py modal_app.py runtime_versions.py scripts tests
+        run: python -m compileall -q agent_carrier.py agent_budget_plugin.py modal_app.py runtime_versions.py scripts tests
       - name: Run deterministic tests
         run: python -m unittest discover -s tests -v
       - name: Import Modal app without deployment credentials
@@ -49,6 +49,8 @@ jobs:
           assert plan['model'] == 'auto'
           assert plan['toolsets'] == ['web']
           assert plan['budget']['max_concurrent_tasks'] == 1
+          assert plan['budget']['max_retries'] == 1
+          assert plan['budget']['max_tool_calls'] == 20
           PY
 
   upstream-runtime:

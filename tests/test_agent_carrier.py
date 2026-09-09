@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -16,14 +17,19 @@ class AgentCarrierTests(unittest.TestCase):
         self.assertEqual(budget.max_concurrent_tasks, 1)
         self.assertEqual(budget.max_turns, 12)
         self.assertEqual(budget.max_wall_seconds, 600)
+        self.assertEqual(budget.max_retries, 1)
+        self.assertEqual(budget.max_tool_calls, 20)
         self.assertLessEqual(budget.max_turns, budget.max_model_calls)
 
     def test_invalid_freellmapi_url_is_rejected(self):
         with self.assertRaises(agent_carrier.CarrierConfigError):
             agent_carrier.validate_freellmapi_base_url("not-a-url")
 
-    def test_hermes_config_uses_named_freellmapi_provider_and_modal_proxy(self):
-        config = agent_carrier.render_hermes_config("https://freellm.example/v1")
+    def test_hermes_config_uses_named_provider_native_retry_alignment_and_budget_plugin(self):
+        budget = agent_carrier.Budget(max_retries=1)
+        config = agent_carrier.render_hermes_config(
+            "https://freellm.example/v1", budget
+        )
         self.assertIn('provider: "freellmapi"', config)
         self.assertIn("providers:\n  freellmapi:", config)
         self.assertIn('default: "auto"', config)
@@ -33,6 +39,9 @@ class AgentCarrierTests(unittest.TestCase):
         self.assertIn("FREELLMAPI_API_KEY", config)
         self.assertIn("${MODAL_PROXY_KEY}", config)
         self.assertIn("${MODAL_PROXY_SECRET}", config)
+        self.assertIn("api_max_retries: 2", config)
+        self.assertIn("plugins:\n  enabled:\n    - agent-budget", config)
+        self.assertIn("hook_callback_timeout: 5", config)
         self.assertIn("keyless_fallback: true", config)
         self.assertNotIn("model_aliases", config)
         self.assertNotIn("OPENAI_API_KEY", config)
@@ -57,13 +66,16 @@ class AgentCarrierTests(unittest.TestCase):
         self.assertNotIn("browser", command)
         self.assertNotIn("delegation", command)
 
-    def test_prompt_requires_public_web_and_structured_result(self):
+    def test_prompt_requires_public_web_structured_result_and_names_hard_limits(self):
         prompt = agent_carrier.render_task_prompt(
             "Research a public technical standard.",
             agent_carrier.Budget(),
         )
         self.assertIn("PUBLIC_NON_PERSONAL", prompt)
         self.assertIn("Use the web toolset", prompt)
+        self.assertIn("Hard runtime limits", prompt)
+        self.assertIn("20 tool calls", prompt)
+        self.assertIn("1 total provider retries", prompt)
         self.assertIn("Return ONLY valid JSON", prompt)
         self.assertIn('"source_url"', prompt)
 
@@ -80,6 +92,8 @@ class AgentCarrierTests(unittest.TestCase):
         self.assertEqual(plan["provider"], "freellmapi")
         self.assertEqual(plan["model"], "auto")
         self.assertEqual(plan["toolsets"], ["web"])
+        self.assertEqual(plan["budget"]["max_retries"], 1)
+        self.assertEqual(plan["budget"]["max_tool_calls"], 20)
 
     def test_plan_uses_normalized_freellmapi_url(self):
         plan = agent_carrier.build_plan(
@@ -109,6 +123,18 @@ class AgentCarrierTests(unittest.TestCase):
                 os.environ.pop(name, None)
                 if old[name] is not None:
                     os.environ[name] = old[name]
+
+    def test_disposable_profile_installs_only_budget_plugin_shim(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / ".hermes"
+            home.mkdir()
+            agent_carrier._install_budget_plugin(home)
+            plugin = home / "plugins" / "agent-budget"
+            self.assertTrue((plugin / "plugin.yaml").exists())
+            self.assertEqual(
+                (plugin / "__init__.py").read_text(encoding="utf-8"),
+                "from agent_budget_plugin import register\n",
+            )
 
     def test_structured_candidate_is_strict(self):
         value = agent_carrier._parse_candidate_output(
@@ -145,6 +171,33 @@ class AgentCarrierTests(unittest.TestCase):
             agent_carrier.Budget(),
         )
         self.assertEqual(accepted["api_calls"], 2)
+
+    def test_hard_budget_state_fails_closed_and_requires_web_completion(self):
+        budget = agent_carrier.Budget()
+        good = {
+            "plugin_ready": True,
+            "model_calls": 2,
+            "tool_calls": 1,
+            "tool_calls_completed": 1,
+            "retries": 0,
+            "budget_exceeded": None,
+            "policy_violation": None,
+        }
+        self.assertEqual(
+            agent_carrier._validate_budget_state(good, budget, require_web_tool=True)["tool_calls"],
+            1,
+        )
+        for changed in (
+            {"plugin_ready": False},
+            {"budget_exceeded": "tool_calls"},
+            {"policy_violation": "unauthorized_tool:terminal"},
+            {"tool_calls": 0, "tool_calls_completed": 0},
+            {"tool_calls": 2, "tool_calls_completed": 1},
+            {"retries": 2},
+        ):
+            state = {**good, **changed}
+            with self.assertRaises(agent_carrier.CarrierConfigError):
+                agent_carrier._validate_budget_state(state, budget, require_web_tool=True)
 
 
 if __name__ == "__main__":

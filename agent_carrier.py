@@ -12,6 +12,7 @@ import json
 import os
 import subprocess
 import tempfile
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from urllib.parse import urlparse
@@ -24,6 +25,11 @@ KEY_ENV = "FREELLMAPI_API_KEY"
 BASE_URL_ENV = "FREELLMAPI_BASE_URL"
 PROXY_KEY_ENV = "MODAL_PROXY_KEY"
 PROXY_SECRET_ENV = "MODAL_PROXY_SECRET"
+BUDGET_PLUGIN_NAME = "agent-budget"
+BUDGET_STATE_ENV = "AGENT_BUDGET_STATE_PATH"
+MAX_MODEL_CALLS_ENV = "AGENT_MAX_MODEL_CALLS"
+MAX_TOOL_CALLS_ENV = "AGENT_MAX_TOOL_CALLS"
+MAX_RETRIES_ENV = "AGENT_MAX_RETRIES"
 
 
 class CarrierConfigError(ValueError):
@@ -59,14 +65,15 @@ def validate_freellmapi_base_url(value: str) -> str:
     return value
 
 
-def render_hermes_config(base_url: str) -> str:
-    """Return the minimal Hermes named-provider configuration.
-
-    Hermes 0.21.1 reliably resolves a keyed ``providers:`` entry to its own
-    endpoint. Credential values remain in environment variables; the config
-    names only those variables and the protected FreeLLMAPI endpoint.
-    """
+def render_hermes_config(base_url: str, budget: Budget) -> str:
+    """Return the minimal Hermes named-provider and hard-budget configuration."""
+    budget.validate()
     base_url = validate_freellmapi_base_url(base_url)
+    # Hermes' api_max_retries counts attempts per logical provider request, where
+    # 1 means one attempt. Keep its native retry loop aligned with our stricter
+    # run-global middleware cap; the middleware remains authoritative for every
+    # actual provider execution, including special recovery paths.
+    native_attempts = budget.max_retries + 1
     return (
         "model:\n"
         f"  default: {json.dumps(MODEL_ID)}\n"
@@ -83,6 +90,12 @@ def render_hermes_config(base_url: str) -> str:
         "    extra_headers:\n"
         f"      Modal-Key: \"${{{PROXY_KEY_ENV}}}\"\n"
         f"      Modal-Secret: \"${{{PROXY_SECRET_ENV}}}\"\n"
+        "agent:\n"
+        f"  api_max_retries: {native_attempts}\n"
+        "plugins:\n"
+        "  enabled:\n"
+        f"    - {BUDGET_PLUGIN_NAME}\n"
+        "  hook_callback_timeout: 5\n"
         "web:\n"
         "  keyless_fallback: true\n"
     )
@@ -103,6 +116,7 @@ Rules:
 - Do not collect, infer, or return personal, sensitive, confidential, or credential data.
 - Do not use terminal, filesystem mutation, browser automation, delegation, messaging, or project-write tools.
 - Keep the work small. Do not exceed {budget.max_turns} model turns.
+- Hard runtime limits are {budget.max_model_calls} provider executions, {budget.max_tool_calls} tool calls, {budget.max_retries} total provider retries, and {budget.max_wall_seconds} seconds.
 - Return ONLY valid JSON, without markdown fences or commentary, using exactly this shape:
 {{
   "summary": "short answer",
@@ -115,14 +129,7 @@ Rules:
 
 
 def build_hermes_command(*, prompt: str, usage_file: Path, budget: Budget) -> list[str]:
-    """Build the smallest programmatic Hermes invocation for 0.21.1.
-
-    Top-level ``-z/--oneshot`` is Hermes' script-oriented path and prints only
-    the final response to stdout. The prompt is passed as one subprocess argv
-    element (never through a shell), so shell metacharacters are not executed.
-    Hermes' own iteration limit is supplied via ``HERMES_MAX_ITERATIONS`` in
-    :func:`execute_once`; the outer process timeout provides the wall bound.
-    """
+    """Build the smallest programmatic Hermes invocation for 0.21.1."""
     budget.validate()
     if not prompt.strip():
         raise CarrierConfigError("prompt is required")
@@ -177,6 +184,20 @@ def _require_runtime_secrets() -> None:
         raise CarrierConfigError(f"{KEY_ENV} must use the freellmapi- prefix")
 
 
+def _install_budget_plugin(hermes_home: Path) -> None:
+    """Install a tiny user plugin shim into this one disposable Hermes profile."""
+    plugin_dir = hermes_home / "plugins" / BUDGET_PLUGIN_NAME
+    plugin_dir.mkdir(parents=True, exist_ok=True)
+    (plugin_dir / "plugin.yaml").write_text(
+        'name: agent-budget\nversion: "1.0.0"\ndescription: Hard Phase-1 execution budgets\n',
+        encoding="utf-8",
+    )
+    (plugin_dir / "__init__.py").write_text(
+        "from agent_budget_plugin import register\n",
+        encoding="utf-8",
+    )
+
+
 def _parse_candidate_output(raw: str) -> dict:
     text = raw.strip()
     if text.startswith("```") and text.endswith("```"):
@@ -220,12 +241,47 @@ def _validate_usage(usage: object, budget: Budget) -> dict | None:
     return usage
 
 
-def execute_once(*, task_id: str, objective: str, base_url: str, budget: Budget) -> dict:
-    """Run one bounded Hermes invocation against protected FreeLLMAPI.
+def _read_budget_state(path: Path) -> dict | None:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return value if isinstance(value, dict) else None
 
-    A successful Phase-1 invocation emits CANDIDATE. RESULT_READY is reserved
-    for the later trusted evidence-verification boundary.
-    """
+
+def _validate_budget_state(state: object, budget: Budget, *, require_web_tool: bool) -> dict:
+    if not isinstance(state, dict) or state.get("plugin_ready") is not True:
+        raise CarrierConfigError("Hermes hard-budget plugin did not report ready state")
+    for field, limit in (
+        ("model_calls", budget.max_model_calls),
+        ("tool_calls", budget.max_tool_calls),
+        ("retries", budget.max_retries),
+    ):
+        value = state.get(field)
+        if not isinstance(value, int) or value < 0:
+            raise CarrierConfigError(f"invalid hard-budget telemetry field: {field}")
+        if value > limit:
+            raise CarrierConfigError(f"hard budget exceeded: {field}")
+    if state.get("budget_exceeded"):
+        raise CarrierConfigError(f"hard budget exhausted: {state['budget_exceeded']}")
+    if state.get("policy_violation"):
+        raise CarrierConfigError(f"hard policy violation: {state['policy_violation']}")
+    if require_web_tool:
+        if state.get("tool_calls", 0) < 1:
+            raise CarrierConfigError("required live web tool call was not observed")
+        if state.get("tool_calls_completed") != state.get("tool_calls"):
+            raise CarrierConfigError("Hermes tool loop did not complete cleanly")
+    return state
+
+
+def _telemetry(state: dict | None, wall_seconds: float) -> dict:
+    value = dict(state or {})
+    value["wall_seconds"] = round(max(wall_seconds, 0.0), 3)
+    return value
+
+
+def execute_once(*, task_id: str, objective: str, base_url: str, budget: Budget) -> dict:
+    """Run one hard-bounded Hermes invocation against protected FreeLLMAPI."""
     plan = build_plan(task_id=task_id, objective=objective, base_url=base_url, budget=budget)
     _require_runtime_secrets()
 
@@ -233,15 +289,24 @@ def execute_once(*, task_id: str, objective: str, base_url: str, budget: Budget)
         root = Path(tmp)
         hermes_home = root / ".hermes"
         hermes_home.mkdir(parents=True)
-        (hermes_home / "config.yaml").write_text(render_hermes_config(base_url), encoding="utf-8")
+        _install_budget_plugin(hermes_home)
+        (hermes_home / "config.yaml").write_text(
+            render_hermes_config(base_url, budget), encoding="utf-8"
+        )
 
         usage_file = root / "usage.json"
+        budget_state_file = root / "budget-state.json"
         prompt = render_task_prompt(objective, budget)
         command = build_hermes_command(prompt=prompt, usage_file=usage_file, budget=budget)
         env = os.environ.copy()
         env["HERMES_HOME"] = str(hermes_home)
         env["HERMES_MAX_ITERATIONS"] = str(budget.max_turns)
+        env[BUDGET_STATE_ENV] = str(budget_state_file)
+        env[MAX_MODEL_CALLS_ENV] = str(budget.max_model_calls)
+        env[MAX_TOOL_CALLS_ENV] = str(budget.max_tool_calls)
+        env[MAX_RETRIES_ENV] = str(budget.max_retries)
 
+        started = time.monotonic()
         try:
             completed = subprocess.run(
                 command,
@@ -252,11 +317,22 @@ def execute_once(*, task_id: str, objective: str, base_url: str, budget: Budget)
                 check=False,
             )
         except subprocess.TimeoutExpired:
-            return {**plan, "status": "FAILED", "error": "wall-time budget exceeded"}
+            state = _read_budget_state(budget_state_file)
+            return {
+                **plan,
+                "status": "FAILED",
+                "error": "wall-time budget exceeded",
+                "telemetry": _telemetry(state, time.monotonic() - started),
+            }
 
+        elapsed = time.monotonic() - started
+        state = _read_budget_state(budget_state_file)
         usage = None
         if usage_file.exists():
-            usage = json.loads(usage_file.read_text(encoding="utf-8"))
+            try:
+                usage = json.loads(usage_file.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                usage = None
 
         if completed.returncode != 0:
             return {
@@ -265,11 +341,13 @@ def execute_once(*, task_id: str, objective: str, base_url: str, budget: Budget)
                 "exit_code": completed.returncode,
                 "error": completed.stderr.strip()[-4000:],
                 "usage": usage,
+                "telemetry": _telemetry(state, elapsed),
             }
 
         try:
             structured = _parse_candidate_output(completed.stdout)
             usage = _validate_usage(usage, budget)
+            state = _validate_budget_state(state, budget, require_web_tool=True)
         except CarrierConfigError as exc:
             return {
                 **plan,
@@ -278,6 +356,7 @@ def execute_once(*, task_id: str, objective: str, base_url: str, budget: Budget)
                 "error": str(exc),
                 "candidate_output": completed.stdout.strip()[-8000:],
                 "usage": usage,
+                "telemetry": _telemetry(state, elapsed),
             }
 
         return {
@@ -286,9 +365,12 @@ def execute_once(*, task_id: str, objective: str, base_url: str, budget: Budget)
             "exit_code": 0,
             "result": structured,
             "usage": usage,
+            "telemetry": _telemetry(state, elapsed),
             "route": {
-                "provider": usage.get("provider") if isinstance(usage, dict) else None,
-                "model": usage.get("model") if isinstance(usage, dict) else None,
+                "provider": state.get("provider")
+                or (usage.get("provider") if isinstance(usage, dict) else None),
+                "model": state.get("response_model")
+                or (usage.get("model") if isinstance(usage, dict) else None),
             },
         }
 

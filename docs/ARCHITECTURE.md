@@ -2,8 +2,8 @@
 
 **Repository:** `market-predictions/agent`  
 **Version:** 0.4 — Hermes + FreeLLMAPI bounded carrier  
-**Status:** operational carrier proven in GitHub Actions; Modal deployment-ready but not yet account-deployed  
-**Date:** 2026-09-09  
+**Status:** operational carrier proven in GitHub Actions and deployed/proven on Modal  
+**Date:** 2026-09-10  
 **Canonical:** yes — this document is the single current architecture truth.
 
 Historical rationale lives in `docs/DESIGN_REVIEW_10_ITERATIONS.md`; implementation sequence in `docs/ROADMAP.md`; operations in `docs/OPERATIONS.md`.
@@ -53,13 +53,13 @@ Consequential work fresh-reads the canonical Google Drive **Execution & Engineer
 4. **One worker is proven before fan-out.**
 5. **Generation and verification are separate authorities.** Phase-1 success is `CANDIDATE`; only a later trusted verifier may emit `RESULT_READY`.
 6. **GitHub is code/config/docs truth.** GitHub Actions also supplies the reproducible end-to-end qualification environment.
-7. **Modal is the selected cloud deployment target**, not a second business/state plane. Cloud deployment requires account-bound credentials and is not claimed until remote smoke passes.
+7. **Modal is the selected cloud deployment target**, not a second business/state plane. The same pinned carrier is deployed there through one explicit promotion workflow.
 
 ---
 
 ## 4. Current proven carrier
 
-The exact current implementation has been exercised end-to-end on a GitHub-hosted runner:
+The exact current implementation has been exercised end-to-end on a GitHub-hosted runner and through a live Modal remote smoke:
 
 ```text
 PUBLIC_NON_PERSONAL objective
@@ -90,9 +90,9 @@ Hermes live web lookup
 strict structured CANDIDATE
 ```
 
-The live proof starts from fresh installs, pulls the exact FreeLLMAPI image, performs a direct `model=auto` call, requires `X-Routed-Via`, then executes the actual Hermes carrier. This is a real model/tool loop, not a mock or dry run.
+The GitHub proof starts from fresh installs, pulls the exact FreeLLMAPI image, performs a direct `model=auto` call, requires `X-Routed-Via`, then executes the actual Hermes carrier. The Modal proof deploys the same pins and carrier and executes a real remote smoke. These are real model/tool loops, not mocks or dry runs.
 
-The same carrier is encoded for Modal in `modal_app.py`:
+The live Modal topology is:
 
 ```text
 Modal Hermes Function
@@ -101,7 +101,7 @@ Modal Hermes Function
   -> CANDIDATE
 ```
 
-The Modal topology is deployment-ready, but a live Modal deployment is not current fact until the external Modal token and named Modal Secrets are configured and `modal run modal_app.py::smoke` succeeds.
+Both functions scale to zero and are capped at one active container in Phase 1.
 
 ---
 
@@ -177,6 +177,16 @@ No raw SQLite edit or custom authentication service exists.
 
 Phase 1 uses ephemeral FreeLLMAPI SQLite state. No Volume, Redis, Postgres, router cluster, or multi-writer architecture exists.
 
+### Modal credential bootstrap
+
+GitHub Actions authenticates to Modal only with repository secrets `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET`. `scripts/bootstrap_modal_runtime.py` then creates exactly the runtime material needed by this topology when absent:
+
+- Modal Secret `agent-hermes` containing the stable FreeLLMAPI client key and one Modal proxy credential pair;
+- Modal Secret `agent-freellmapi` containing the FreeLLMAPI encryption key;
+- one Modal proxy token protecting the web service.
+
+The bootstrap is idempotent, preserves the complete existing pair, fails closed on partial Secret state, and does not print generated secret values. Runtime credentials stay in Modal, not Git.
+
 ---
 
 ## 8. Data and authority
@@ -205,7 +215,9 @@ Phase 2 may add `PARTIAL` and `RESULT_READY` after independent evidence verifica
 
 The expensive live model proof runs on pull requests and on merged `main`, not twice for both branch push and PR.
 
-`.github/workflows/deploy-modal.yml` is the only Modal deployment path and is explicit-dispatch only while account credentials are absent. It fails closed if `MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET` are missing. Provider credentials remain in Modal Secrets, not GitHub or Hermes.
+`.github/workflows/deploy-modal.yml` is the only Modal deployment path. It is explicit-dispatch only, authenticates with `MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET`, idempotently bootstraps the named runtime Secrets, deploys `modal_app.py`, and optionally executes the remote smoke. Provider/runtime credentials remain in Modal Secrets, not GitHub source or Hermes.
+
+The first live promotion and remote smoke have succeeded. A temporary branch-push trigger used only to prove the initial promotion was removed immediately afterward, so ordinary source pushes cannot spend Modal compute by deploying.
 
 ---
 

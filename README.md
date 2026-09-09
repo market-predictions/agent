@@ -14,7 +14,7 @@ The Drive document remains canonical. See [`control/PROJECT_GOVERNANCE.md`](cont
 
 ## Current implementation — operational Phase-1 carrier
 
-The bounded core is proven end-to-end on a clean GitHub-hosted runner:
+The bounded core is proven end-to-end both on a clean GitHub-hosted runner and as a live Modal deployment:
 
 ```text
 PUBLIC_NON_PERSONAL task
@@ -41,7 +41,7 @@ Hermes live web lookup
 strict structured CANDIDATE
 ```
 
-The integration proof performs both a direct real FreeLLMAPI `model=auto` call with `X-Routed-Via` and the actual Hermes -> FreeLLMAPI -> model -> web chain. It is not a mock or dry-run-only implementation.
+The GitHub integration proof performs both a direct real FreeLLMAPI `model=auto` call with `X-Routed-Via` and the actual Hermes -> FreeLLMAPI -> model -> web chain. The Modal promotion additionally deploys the same pinned carrier and requires a remote smoke to return `CANDIDATE`.
 
 `CANDIDATE` is deliberately **not** `RESULT_READY`; independent evidence verification is a later phase.
 
@@ -63,11 +63,11 @@ The integration proof performs both a direct real FreeLLMAPI `model=auto` call w
 
 ## Cloud deployment
 
-`modal_app.py` is the selected cloud topology: one bounded Hermes Function and one protected FreeLLMAPI web service, both scale-to-zero and capped at one active container in Phase 1.
+`modal_app.py` is the proven cloud topology: one bounded Hermes Function and one protected FreeLLMAPI web service, both scale-to-zero and capped at one active container in Phase 1.
 
-The code is deployment-ready, but **live Modal deployment is not yet a proven fact** because the account-owned `MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET` are absent from GitHub. The repository cannot create or recover those credentials. Exact setup and smoke commands are in [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
+GitHub Actions authenticates with repository secrets `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET`. The canonical workflow [`deploy-modal.yml`](.github/workflows/deploy-modal.yml) is explicit-dispatch only. On first promotion it idempotently creates the two named Modal runtime Secrets plus one Modal proxy token through [`scripts/bootstrap_modal_runtime.py`](scripts/bootstrap_modal_runtime.py); later promotions preserve them.
 
-`.github/workflows/deploy-modal.yml` is an explicit-dispatch promotion workflow and fails closed when account credentials are missing. It intentionally does not run on every `main` push while those external credentials are absent.
+A live deployment and remote Hermes -> FreeLLMAPI smoke have succeeded. Exact operating and recovery semantics are in [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
 
 ## Verification
 
@@ -79,7 +79,7 @@ The code is deployment-ready, but **live Modal deployment is not yet a proven fa
 - real free routed model inference;
 - real Hermes web-tool candidate execution.
 
-The live provider proof runs once per pull-request candidate and once after merge to `main`, avoiding duplicate free-provider quota consumption.
+The live provider proof runs once per pull-request candidate and once after merge to `main`, avoiding duplicate free-provider quota consumption. Modal deployment remains a separate explicit promotion action rather than an automatic push side effect.
 
 ## Current docs
 

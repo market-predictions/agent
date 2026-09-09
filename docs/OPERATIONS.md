@@ -1,25 +1,30 @@
 # Agent Operations — Phase 1
 
-**Scope:** operate the proven bounded Hermes -> FreeLLMAPI carrier and promote the same code to Modal when account credentials are available.  
+**Scope:** operate the proven bounded Hermes -> FreeLLMAPI carrier and explicitly promote the same pinned code to Modal.  
 **Control:** frozen; these operations do not modify Control.  
 **Data lane:** `PUBLIC_NON_PERSONAL` only.
 
 ## 1. Current operational fact
 
-The carrier core is already proven on a clean GitHub-hosted runner:
+The carrier is proven in two environments:
 
 ```text
-pinned Hermes 0.21.1
+clean GitHub-hosted runner
+  -> pinned Hermes 0.21.1
   -> named FreeLLMAPI provider
   -> pinned FreeLLMAPI 0.9.8
   -> real free routed model
   -> Hermes live web tool
   -> strict CANDIDATE
+
+explicit Modal promotion
+  -> protected FreeLLMAPI web service
+  -> bounded Hermes Function
+  -> real remote smoke
+  -> strict CANDIDATE
 ```
 
-The CI proof starts from a clean machine, installs the exact Hermes commit, starts the exact FreeLLMAPI image, performs a direct authenticated `model=auto` inference with route metadata, and then runs the real Hermes carrier.
-
-Modal is the selected cloud deployment target. Cloud deployment is a promotion of this proven carrier, not a substitute for proving the code works.
+Modal is the selected cloud deployment target. Cloud deployment is a promotion of the proven carrier, not a substitute for proving the code works.
 
 ## 2. Git-owned runtime identity
 
@@ -34,69 +39,50 @@ The default FreeLLMAPI declarative bootstrap in `runtime/freellmapi.default.json
 
 Do not duplicate these pins in another current config file.
 
-## 3. External Modal account prerequisite
+## 3. GitHub -> Modal deployment credential
 
-GitHub deployment requires the account-owned Modal token pair:
+GitHub Actions authenticates to the Modal workspace with exactly two repository Secrets:
 
 ```text
 MODAL_TOKEN_ID
 MODAL_TOKEN_SECRET
 ```
 
-The repository and current connected tools cannot create, recover, or read this account credential. An earlier deployment attempt already demonstrated that these values are currently absent from GitHub, so no live Modal deployment is claimed.
+They are account-owned credentials and must never be committed, echoed, copied into runtime config, or placed in ordinary GitHub Variables. The repository only consumes them through Actions Secrets.
 
-Create/manage the token through Modal's normal account/CLI flow, then store both values as GitHub Actions secrets with exactly those names. Never commit them.
+The current GitHub/Modal binding has been verified by a successful authenticated deployment. Rotation is performed in Modal and then by replacing the two GitHub repository Secret values; no code change is required.
 
-## 4. Runtime credentials for Modal
+## 4. Runtime credentials are bootstrapped, not hand-copied
 
-Generate a stable FreeLLMAPI unified key and encryption key outside Git:
+`scripts/bootstrap_modal_runtime.py` is the canonical first-deploy bootstrap. It runs after Modal authentication and before deployment.
 
-```bash
-python - <<'PY'
-import secrets
-print('FREELLMAPI_API_KEY=freellmapi-' + secrets.token_urlsafe(24))
-print('ENCRYPTION_KEY=' + secrets.token_hex(32))
-PY
-```
+When neither named runtime Secret exists, it generates in-process:
 
-Create one Modal proxy token through Modal's normal workspace CLI/account flow and retain its `wk-...` key and `ws-...` secret as:
+- one stable `FREELLMAPI_API_KEY`;
+- one 64-hex `ENCRYPTION_KEY`;
+- one Modal proxy token protecting the FreeLLMAPI web endpoint.
+
+It then creates:
+
+### `agent-hermes`
 
 ```text
+FREELLMAPI_API_KEY
 MODAL_PROXY_KEY
 MODAL_PROXY_SECRET
 ```
 
-These protect the FreeLLMAPI web endpoint at the Modal boundary.
-
-## 5. Create the two Modal Secrets
-
-### `agent-hermes`
-
-Contains only credentials needed by the Hermes client boundary:
-
-```bash
-modal secret create --force agent-hermes \
-  FREELLMAPI_API_KEY="$FREELLMAPI_API_KEY" \
-  MODAL_PROXY_KEY="$MODAL_PROXY_KEY" \
-  MODAL_PROXY_SECRET="$MODAL_PROXY_SECRET"
-```
-
-Hermes does **not** receive upstream provider API keys.
-
 ### `agent-freellmapi`
 
-The first zero-provider-key deployment requires only:
-
-```bash
-modal secret create --force agent-freellmapi \
-  ENCRYPTION_KEY="$ENCRYPTION_KEY"
+```text
+ENCRYPTION_KEY
 ```
 
-Without `FREEAPI_CONFIG_JSON`, the Git-controlled default config uses keyless Kilo + OVH.
+Secret values are not printed. If both named Secrets already exist, bootstrap is a no-op and preserves them. If exactly one exists, bootstrap fails closed rather than guessing or silently creating a mixed credential state. If creation fails mid-flight, newly created bootstrap material is rolled back.
 
-If additional providers are later needed, add one complete declarative `FREEAPI_CONFIG_JSON` to `agent-freellmapi`. FreeLLMAPI gives inline JSON precedence over the file path, so that JSON becomes the complete startup config and must include every provider that should remain eligible. Store real provider keys only in the Modal Secret.
+Do not manually create a second parallel credential path unless recovery from a specific failure requires it.
 
-## 6. Promote to Modal
+## 5. Promote to Modal
 
 The canonical cloud promotion workflow is:
 
@@ -104,25 +90,29 @@ The canonical cloud promotion workflow is:
 .github/workflows/deploy-modal.yml
 ```
 
-It is **workflow-dispatch only** while the external account token is absent. Once the GitHub token secrets and the two named Modal Secrets exist, dispatch the workflow with `run_smoke=true`.
+It is **workflow-dispatch only**. A deployment therefore happens only when deliberately requested; ordinary source pushes do not deploy or spend Modal compute.
 
-It then:
+With `run_smoke=true` it performs:
 
-1. checks out source with no persisted GitHub credential;
-2. installs the pinned Modal CLI;
-3. fails closed if the Modal account token is absent;
-4. deploys `modal_app.py`;
-5. runs the remote smoke when requested.
+1. checkout with no persisted GitHub credential;
+2. installation of the pinned Modal CLI;
+3. fail-closed verification of the Modal account token;
+4. idempotent runtime-Secret bootstrap;
+5. `modal deploy modal_app.py`;
+6. one real remote Hermes -> FreeLLMAPI smoke.
 
 Manual equivalent from an authenticated machine:
 
 ```bash
 python -m pip install -r requirements.txt
+python -m scripts.bootstrap_modal_runtime
 modal deploy modal_app.py
 modal run modal_app.py::smoke
 ```
 
-## 7. Remote smoke success criterion
+The first live deployment and smoke have already succeeded. Repeat deployment only for an intentional promotion or operational verification; do not use redeployment as routine polling.
+
+## 6. Remote smoke success criterion
 
 The smoke passes only when the remote chain returns a structured `CANDIDATE`:
 
@@ -136,12 +126,12 @@ Modal Hermes Function
 
 Do not call this `RESULT_READY`; independent evidence verification is Phase 2.
 
-## 8. Failure semantics
+## 7. Failure semantics
 
 Fail closed on:
 
-- missing Modal account/deployment credentials;
-- missing required named Modal Secrets;
+- missing/invalid Modal account deployment credentials;
+- partial named Modal runtime-Secret state;
 - invalid FreeLLMAPI unified key;
 - FreeLLMAPI health/auth failure;
 - no eligible model/provider;
@@ -152,6 +142,14 @@ Fail closed on:
 
 There is no paid fallback, direct-provider bypass, project-write fallback, second runtime, queue, or shadow scheduler.
 
+## 8. Recovery and rotation
+
+If the GitHub deployment token is rotated, replace `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` in GitHub Actions Secrets and rerun an explicit deployment.
+
+If a named Modal runtime Secret must be rotated, treat the pair as one deliberate credential boundary. Do not delete only one and rely on bootstrap to repair it: partial state intentionally fails closed. Either replace values through Modal's normal Secret management or remove/recreate the complete runtime Secret pair in one controlled maintenance action, then rerun deployment and smoke.
+
+Do not log or paste credential values into issues, PR comments, Actions output, or chat.
+
 ## 9. Verification commands without Modal
 
 The canonical repository verification is GitHub Actions. For local deterministic checks:
@@ -159,7 +157,7 @@ The canonical repository verification is GitHub Actions. For local deterministic
 ```bash
 python -m pip install -r requirements.txt
 python -m unittest discover -s tests -v
-python -m compileall -q agent_carrier.py modal_app.py runtime_versions.py tests
+python -m compileall -q agent_carrier.py modal_app.py runtime_versions.py scripts tests
 ```
 
 The real free-model/Hermes integration logic is kept in `scripts/ci_runtime_probe.sh` and is run by `.github/workflows/ci.yml` from a clean GitHub-hosted environment.

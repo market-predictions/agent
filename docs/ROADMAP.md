@@ -3,7 +3,7 @@
 **Repository:** `market-predictions/agent`  
 **Architecture:** v0.4 — Hermes + FreeLLMAPI bounded carrier  
 **Status:** canonical implementation sequence  
-**Date:** 2026-09-09
+**Date:** 2026-09-10
 
 Hermes is the selected runtime. FreeLLMAPI is the sole inference gateway. There is no Pydantic AI path or direct-provider bypass.
 
@@ -65,9 +65,9 @@ Phase-1 output is `CANDIDATE`, not `RESULT_READY`.
 
 # Phase 1B — Modal cloud deployment
 
-## Status: CODE READY; EXTERNAL ACCOUNT CREDENTIALS PENDING
+## Status: PROVEN
 
-Implemented:
+Implemented and verified:
 
 - `modal_app.py` as the single cloud topology;
 - one protected FreeLLMAPI web service, max one active container, scale-to-zero;
@@ -75,23 +75,22 @@ Implemented:
 - exact upstream pins and same carrier code as the proven GitHub runner;
 - Modal proxy auth + FreeLLM unified bearer;
 - named Secrets `agent-hermes` and `agent-freellmapi`;
+- GitHub repository authentication through `MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET`;
+- idempotent first-deploy runtime bootstrap in `scripts/bootstrap_modal_runtime.py`;
 - `.github/workflows/deploy-modal.yml` as the only deployment workflow;
-- `docs/OPERATIONS.md` as the operator runbook.
+- `docs/OPERATIONS.md` as the operator runbook;
+- successful `modal deploy modal_app.py`;
+- successful remote `modal run modal_app.py::smoke` returning `CANDIDATE`.
 
-Remaining fact required before **cloud deployed** can be claimed:
-
-1. external Modal account token exists as `MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET`;
-2. required Modal Secrets are created;
-3. `modal deploy modal_app.py` succeeds;
-4. `modal run modal_app.py::smoke` returns `CANDIDATE` remotely.
-
-The repository cannot manufacture or read the user's Modal account credentials. Missing external credentials are not a reason to add a second cloud runtime or commit secrets.
+The runtime bootstrap generates credentials in-process, never prints them, preserves an already complete Secret pair, and fails closed on partial state. The deployment workflow is explicit-dispatch only; ordinary pushes do not deploy or consume Modal compute.
 
 ---
 
 # Phase 1C — Qualification / AGENT-R1-GAP-01 evidence
 
-The first working carrier is not full Mission acceptance.
+## Status: NEXT
+
+The first working cloud carrier is not full Mission acceptance.
 
 Required next evidence:
 

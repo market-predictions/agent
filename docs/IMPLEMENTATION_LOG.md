@@ -133,9 +133,7 @@ This establishes a real operational carrier, not a mock/dry-run-only implementat
 
 `modal_app.py` contains one protected FreeLLMAPI service and one bounded Hermes Function, both scale-to-zero and capped at one active container in Phase 1. `.github/workflows/deploy-modal.yml` is the only cloud deployment path.
 
-An automatic deployment attempt correctly failed before deployment because the external account-bound GitHub secrets `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` are absent. No connected tool exposes or can manufacture the user's Modal account credentials.
-
-The deployment workflow is therefore explicit-dispatch only while those credentials are absent. This keeps normal `main` verification green and makes cloud promotion deliberate; when the account token and named Modal Secrets exist, one dispatch performs deploy + smoke.
+The initial attempt correctly stopped before deployment while the account-owned GitHub secrets `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` were still absent. No fallback credential or second deployment mechanism was invented.
 
 ### 11. Removed duplicate live-provider CI work
 
@@ -149,12 +147,80 @@ No Control repository, Runner, Mission, queue, scheduler, prompt, carrier, or ca
 
 ---
 
+## 2026-09-10 — first live Modal promotion
+
+### 13. Bound GitHub Actions to the Modal workspace
+
+The account-owned Modal API token was stored only as encrypted GitHub Actions repository Secrets:
+
+```text
+MODAL_TOKEN_ID
+MODAL_TOKEN_SECRET
+```
+
+A live workflow authentication check confirmed that the GitHub runner could authenticate to the intended Modal workspace. Token values were neither committed nor logged.
+
+### 14. Removed manual runtime-secret setup from the critical path
+
+Added `scripts/bootstrap_modal_runtime.py` as a small idempotent first-deploy bootstrap. With the deployment token as its only external prerequisite it:
+
+- generates a stable FreeLLMAPI client key;
+- generates the FreeLLMAPI encryption key;
+- creates one Modal proxy token;
+- creates the canonical `agent-hermes` and `agent-freellmapi` Modal Secrets;
+- preserves the pair on subsequent runs;
+- fails closed on partial pre-existing state;
+- rolls back newly created bootstrap material after an incomplete creation;
+- never prints generated secret values.
+
+This eliminated unnecessary human copy/paste and kept one credential path.
+
+### 15. Fixed Modal image-order validation discovered by the real deploy
+
+The first authenticated deployment exposed a Modal image-build rule: build steps may not be appended after local-file mounts. The FreeLLMAPI image definition was reordered so environment/build configuration is completed before `add_local_*` mounts.
+
+No additional image abstraction was introduced.
+
+### 16. Neutralized the upstream Docker ENTRYPOINT at the Modal boundary
+
+The next real remote smoke showed that FreeLLMAPI's published Docker `ENTRYPOINT` drops privileges for ordinary container/PaaS operation. That conflicted with Modal's own Function runtime bootstrap and produced Modal package permission/import failures.
+
+The image now explicitly uses `.entrypoint([])` for Modal and invokes FreeLLMAPI's existing `/usr/local/bin/docker-entrypoint.sh` only for the actual FreeLLMAPI bootstrap/server process. This preserves the upstream helper while letting Modal own the Function entrypoint.
+
+### 17. Minimized cross-image Python imports
+
+A subsequent smoke exposed that `modal_app.py` was imported inside the FreeLLMAPI Function image while `agent_carrier` existed only in the Hermes image. The fix moved `agent_carrier` import into `run_agent` and mounts only `runtime_versions` into the service image.
+
+This is a narrower dependency boundary, not a compatibility layer.
+
+### 18. Proved the live Modal carrier and removed the temporary trigger
+
+The resulting deployment completed successfully:
+
+```text
+GitHub Actions token auth
+-> idempotent Modal runtime-secret bootstrap
+-> modal deploy modal_app.py
+-> protected FreeLLMAPI service
+-> bounded Hermes Function
+-> real remote Hermes -> FreeLLMAPI smoke
+-> CANDIDATE
+```
+
+The temporary branch-push trigger used only to exercise the first deployment was then removed. `deploy-modal.yml` is again explicit-dispatch only, so ordinary candidate pushes do not redeploy or consume Modal compute.
+
+CI was also extended to compile the bootstrap helper.
+
+---
+
 ## Current evidence boundary
 
-**Proven:** working code for the bounded Hermes + real model + FreeLLMAPI carrier on a clean GitHub-hosted runtime.
+**Proven:** working bounded Hermes + FreeLLMAPI carrier with real free model and live web tool on a clean GitHub-hosted runtime.
 
-**Deployment-ready but not externally proven:** Modal cloud deployment. That requires account-owned Modal credentials and named Modal Secrets documented in `docs/OPERATIONS.md`.
+**Proven:** live Modal cloud deployment of the same pinned topology and successful remote smoke to structured `CANDIDATE`.
 
-**Not yet part of the first operational carrier:** Phase-2 trusted evidence verifier, 20-run Mission qualification, fan-out, persistent router state, project writes, mobile/interactive Hermes.
+**Still not full Mission acceptance:** `AGENT-R1-GAP-01` requires Phase-1C qualification evidence including repeated runs, quality/usefulness measurements, exact-head validation and required external review.
+
+**Not yet part of the first operational carrier:** Phase-2 trusted evidence verifier, fan-out, persistent router state, project writes, mobile/interactive Hermes.
 
 `CANDIDATE` must not be misrepresented as `RESULT_READY` or business `DONE`.

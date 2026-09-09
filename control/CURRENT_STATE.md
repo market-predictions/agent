@@ -1,6 +1,6 @@
 # Agent Framework — Current Project Facts
 
-**Observed date:** 2026-09-09  
+**Observed date:** 2026-09-10  
 **Repository:** `market-predictions/agent`  
 **Status type:** project-local implementation snapshot only  
 **Control runtime/status authority:** **no**
@@ -11,12 +11,14 @@
 
 ```text
 architecture_version=v0.4
-implementation_state=OPERATIONAL_PHASE1_CARRIER_PROVEN_IN_GITHUB_ACTIONS
+implementation_state=OPERATIONAL_PHASE1_CARRIER_PROVEN_GITHUB_AND_MODAL
 github_source_of_truth=true
 real_hermes_freellm_model_web_chain_proven=true
 modal_runtime_code_present=true
-modal_live_deployment_proven=false
-modal_deployment_blocker=EXTERNAL_ACCOUNT_CREDENTIALS_ABSENT
+modal_live_deployment_proven=true
+modal_remote_smoke_proven=true
+modal_deployment_blocker=NONE
+modal_runtime_secret_bootstrap_proven=true
 hermes_runtime_pinned=true
 freellmapi_runtime_pinned=true
 trusted_verifier_deployed=false
@@ -46,6 +48,8 @@ pinned Hermes 0.21.1 / exact commit
 
 A clean GitHub-hosted proof installs Hermes from the exact source commit, pulls/starts the exact FreeLLMAPI image, verifies gateway authentication, performs a direct real `model=auto` inference with `X-Routed-Via`, and then completes the actual Hermes web-tool carrier.
 
+The same pinned carrier is now also deployed on Modal. The live promotion authenticated from GitHub Actions, created the required runtime credential boundary, deployed the protected FreeLLMAPI service plus bounded Hermes Function, and completed the remote smoke with `CANDIDATE`.
+
 The current output authority is `CANDIDATE`. `RESULT_READY` does not exist until the separate trusted verifier is implemented.
 
 ## Security/capability facts
@@ -57,14 +61,27 @@ The current output authority is `CANDIDATE`. `RESULT_READY` does not exist until
 - No framework DB, queue, publisher, fan-out, persistent Hermes memory, Sandbox, or paid fallback exists.
 - The zero-key model bootstrap uses current upstream keyless Kilo and OVH adapters.
 - Modal topology caps FreeLLMAPI and Hermes at one active container each and scales them to zero.
+- GitHub holds only the Modal deployment token pair as encrypted Actions Secrets; generated runtime credentials remain in Modal Secrets.
+- The runtime bootstrap is idempotent and fails closed on partial named-Secret state.
 
 ## Modal deployment boundary
 
-The repository contains the complete selected Modal topology and deployment workflow. A live cloud deployment is **not** current fact.
+The canonical deployment path is `.github/workflows/deploy-modal.yml` and is explicit-dispatch only.
 
-Observed deployment prerequisite failure: GitHub does not currently contain the account-owned `MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET`, so deployment stopped before `modal deploy`. The repository and connected tools cannot create or recover the user's Modal account token. Named runtime Secrets are documented in `docs/OPERATIONS.md` and must remain outside Git.
+Current verified chain:
 
-The deployment workflow is now explicit-dispatch only while those credentials are absent. Candidate and `main` CI therefore remain focused on the proven carrier instead of producing repeated known credential failures.
+```text
+GitHub Actions repository Secrets
+  -> Modal account authentication
+  -> idempotent runtime credential bootstrap
+  -> modal deploy modal_app.py
+  -> protected FreeLLMAPI web service
+  -> bounded Hermes Function
+  -> remote smoke
+  -> CANDIDATE
+```
+
+The temporary branch-push trigger used to prove the first deployment has been removed. Ordinary source pushes therefore do not automatically deploy or spend Modal compute.
 
 ## Verification facts
 
@@ -73,7 +90,7 @@ Candidate CI has two layers:
 1. deterministic compile/tests/topology/contract checks;
 2. exact upstream integration with a real free model and real Hermes web-tool execution.
 
-The live provider proof runs once per pull-request candidate and once after merge to `main` to avoid duplicate free-provider quota use.
+The live provider proof runs once per pull-request candidate and once per merge to `main` to avoid duplicate free-provider quota use. Modal promotion is separately explicit.
 
 Exact current head/check status must always be read from PR #1 rather than copied here as authority.
 

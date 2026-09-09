@@ -5,7 +5,7 @@ project_id=AGENT_FRAMEWORK
 project_repository=market-predictions/agent
 source_of_truth=GITHUB
 control_protocol=CONTROL_V4
-control_management_status=PENDING_AUTHORITY_ADOPTION
+control_management_status=CONTROL_MANAGED
 project_risk_class=AGENT_EXECUTION_INFRASTRUCTURE
 production_project_mutation=NOT_AUTHORIZED
 paid_inference_fallback=NOT_AUTHORIZED
@@ -15,9 +15,9 @@ principal_manual_relay_target=0
 
 ## Purpose
 
-This file is the project-local governance bootstrap for bringing `market-predictions/agent` under Control V4.
+This file is the project-local governance contract for `market-predictions/agent` under Control V4.
 
-It does **not** grant Control authority and it is **not** Control runtime state. Control authority exists only through the current canonical Control V4 runtime authority, Mission Contract, repository-authority record and canonical runtime queue in `market-predictions/control-plane` / `control-runtime-state`.
+It does **not** duplicate Control authority and it is **not** Control runtime state. Control authority exists through the current canonical Control V4 runtime authority, Mission Contract, repository-authority record and canonical runtime queue in `market-predictions/control-plane` / `control-runtime-state`.
 
 The project-local purpose is to make the repository self-describing enough that a Control task can be executed without relying on chat memory or narrative handover.
 
@@ -28,11 +28,11 @@ All consequential architecture, engineering, implementation, refactoring, debugg
 **Execution & Engineering Constitution**  
 https://docs.google.com/document/d/1Zf9DvT282-EDsU-SoXinJKQX5LcQC2wabkoTL0doDh0/edit
 
-This document is the mandatory cross-project operating doctrine. It is not a second Control semantic authority source: Control Mission/repository/runtime authority still determines **what work is authorized**, while the Constitution governs **how engineering work is approached and executed**. Project-local architecture and implementation may narrow the doctrine for this project but may not silently contradict it.
+This document is the mandatory cross-project operating doctrine. It is not a second Control semantic authority source: Control Mission/repository/runtime authority determines **what work is authorized**, while the Constitution governs **how engineering work is approached and executed**. Project-local architecture and implementation may narrow the doctrine for this project but may not silently contradict it.
 
 If the Constitution cannot be read when consequential project work requires it, do not substitute chat memory or a local paraphrase as if it were current canonical doctrine; report the missing dependency and limit work to actions that do not depend on that doctrine.
 
-## Canonical authority once adopted
+## Canonical authority
 
 ```text
 Control architecture:
@@ -41,10 +41,10 @@ market-predictions/control-plane:control/CONTROL_AUTONOMY_ARCHITECTURE_V4.md
 Control system index:
 market-predictions/control-plane:control/SYSTEM_INDEX.md
 
-Mission candidate/current path:
+Canonical Mission:
 market-predictions/control-plane:control/missions/AGENT_FRAMEWORK.mission.json
 
-Repository authority candidate/current path:
+Canonical repository authority:
 market-predictions/control-plane:control/repository-authority/market-predictions__agent.json
 
 Mandatory cross-project engineering doctrine:
@@ -61,7 +61,7 @@ Project-local factual snapshot:
 control/CURRENT_STATE.md
 ```
 
-Until the Mission and repository-authority candidate are adopted through the governed Control V4 authority-change path, this project remains `PENDING_AUTHORITY_ADOPTION` and must not be represented as an active Control-managed Mission.
+`AGENT_FRAMEWORK` is an active Control-managed Mission. Current mutable lifecycle/status must be read from Control's canonical V4 runtime sources rather than inferred from this file.
 
 ## Authority model
 
@@ -86,11 +86,11 @@ Project-local `CURRENT_STATE.md` is a bounded implementation-fact snapshot only.
 
 The initial Control handoff is intentionally minimal:
 
-1. adopt `AGENT_FRAMEWORK` and its repository-authority record through the governed Control V4 authority path;
-2. create exactly one small implementation candidate (branch + PR) for the first eligible gap, `AGENT-R1-GAP-01`;
-3. from that candidate onward, Control owns convergence through its existing governed BUILD / REPAIR / REVIEW / PASS / integration lifecycle.
+1. `AGENT_FRAMEWORK` and its repository-authority record are adopted in canonical Control authority;
+2. one small implementation candidate exists for the first eligible gap, `AGENT-R1-GAP-01` — Agent PR #1 on `bootstrap/agent-r1-gap-01`;
+3. from that candidate onward, Control owns convergence through its existing governed BUILD / REPAIR / REVIEW / PASS lifecycle.
 
-The principal/bootstrap step is **not** expected to manually complete multiple roadmap phases or fully satisfy GAP-01 before Control takes over. The bootstrap candidate only needs to provide a coherent, executable starting point that preserves the Mission's hard authority boundaries and gives Control concrete repository facts to repair and review.
+The principal/bootstrap step is **not** expected to manually complete multiple roadmap phases or fully satisfy GAP-01 before Control takes over. The bootstrap candidate only provides a coherent executable starting point that preserves the Mission's hard authority boundaries and gives Control concrete repository facts to repair and review.
 
 Do not create a new `candidate-less BUILD` capability in Control merely to eliminate this one manual bootstrap step. That is a possible later Control improvement only after the existing chain has been proven with Agent.
 
@@ -149,8 +149,10 @@ Per-gap `review_policy` and `integration_policy` come only from the current Miss
 
 - `INTERNAL` means Control's governed critical engineering review is sufficient for that gap.
 - `EXTERNAL` requires fresh external review bound to the complete exact candidate/base identity.
-- `AUTO_AFTER_PASS` permits governed repository integration only after every exact candidate/base/CI/review gate is satisfied and current global integration authority permits it.
+- `AUTO_AFTER_PASS` permits governed repository integration only when current Control integration authority actually enables it and every exact candidate/base/CI/review gate is satisfied.
 - `HOLD_AFTER_PASS` remains READY after PASS and must not be silently integrated.
+
+Current Control carrier V1 has integration disabled; Mission policy does not override that global restriction.
 
 No review policy creates production deployment, customer-data, paid-provider or business-final-decision authority.
 

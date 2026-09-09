@@ -50,3 +50,70 @@ jobs:
           assert plan['toolsets'] == ['web']
           assert plan['budget']['max_concurrent_tasks'] == 1
           PY
+
+  upstream-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Install exact Hermes commit
+        run: |
+          HERMES_SPEC="$(python -c 'import runtime_versions; print(runtime_versions.HERMES_GIT_SPEC)')"
+          python -m pip install --disable-pip-version-check "$HERMES_SPEC"
+          hermes --version
+      - name: Pull exact FreeLLMAPI image digest
+        run: |
+          IMAGE="$(python -c 'import runtime_versions; print(runtime_versions.FREELLMAPI_IMAGE)')"
+          docker pull "$IMAGE"
+      - name: Boot FreeLLMAPI and prove unified-key authentication
+        env:
+          ENCRYPTION_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          FREELLMAPI_API_KEY: freellmapi-ci-integration-key
+        run: |
+          set -euo pipefail
+          IMAGE="$(python -c 'import runtime_versions; print(runtime_versions.FREELLMAPI_IMAGE)')"
+          cleanup() { docker rm -f agent-freeapi-ci >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+
+          docker run --rm -d \
+            --name agent-freeapi-ci \
+            -p 3001:3001 \
+            -e ENCRYPTION_KEY \
+            -e FREELLMAPI_API_KEY \
+            -v "$PWD/runtime/freellmapi-bootstrap.mjs:/app/agent-freellmapi-bootstrap.mjs:ro" \
+            "$IMAGE" \
+            sh -lc 'node /app/agent-freellmapi-bootstrap.mjs >/dev/null && exec node server/dist/index.js'
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3001/api/ping >/dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              docker logs agent-freeapi-ci
+              exit 1
+            fi
+            sleep 1
+          done
+
+          unauth_status="$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:3001/v1/models)"
+          test "$unauth_status" = "401"
+
+          curl --fail --silent \
+            -H "Authorization: Bearer $FREELLMAPI_API_KEY" \
+            http://127.0.0.1:3001/v1/models \
+            > /tmp/models.json
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          body = json.loads(Path('/tmp/models.json').read_text())
+          assert body['object'] == 'list'
+          assert any(item.get('id') == 'auto' for item in body['data'])
+          PY

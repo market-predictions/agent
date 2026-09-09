@@ -11,16 +11,26 @@ permissions:
   contents: read
 
 jobs:
-  bootstrap:
+  carrier:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
-      - name: Run bootstrap tests
+      - name: Install pinned deployment tooling
+        run: python -m pip install --disable-pip-version-check -r requirements.txt
+      - name: Compile Python
+        run: python -m compileall -q agent_carrier.py modal_app.py runtime_versions.py tests
+      - name: Run deterministic tests
         run: python -m unittest discover -s tests -v
+      - name: Import Modal app without deployment credentials
+        run: python -c "import modal_app; assert modal_app.app is not None"
       - name: Verify bounded dry-run plan
         run: |
           python agent_carrier.py \

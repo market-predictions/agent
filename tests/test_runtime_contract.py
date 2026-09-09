@@ -24,15 +24,17 @@ class RuntimeContractTests(unittest.TestCase):
             r"^ghcr\.io/tashfeenahmed/freellmapi@sha256:[0-9a-f]{64}$",
         )
 
-    def test_modal_topology_stays_small_and_protected(self):
+    def test_modal_topology_stays_small_protected_and_single_input(self):
         source = (ROOT / "modal_app.py").read_text(encoding="utf-8")
         self.assertIn("requires_proxy_auth=True", source)
         self.assertIn("max_containers=1", source)
         self.assertIn("min_containers=0", source)
+        self.assertIn("@modal.concurrent(max_inputs=1)", source)
         self.assertIn("HERMES_COMMIT", source)
         self.assertIn("pip install --disable-pip-version-check -e", source)
         self.assertIn("FREELLMAPI_IMAGE", source)
         self.assertIn("agent-freellmapi-default.json", source)
+        self.assertIn('"agent_carrier", "agent_budget_plugin", "runtime_versions"', source)
         self.assertNotIn("modal.Volume", source)
         self.assertNotIn("modal.Sandbox", source)
         self.assertNotIn("Pydantic", source)

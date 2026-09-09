@@ -3,7 +3,7 @@ name: Deploy Agent to Modal
 on:
   push:
     branches:
-      - bootstrap/agent-r1-gap-01
+      - main
   workflow_dispatch:
     inputs:
       run_smoke:

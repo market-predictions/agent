@@ -52,8 +52,13 @@ freellmapi_client_secret = modal.Secret.from_name(
     ],
 )
 
+# FreeLLMAPI's published image has a Docker ENTRYPOINT that drops privileges
+# before exec'ing its command. Modal owns the container entrypoint for Function
+# images, so clear the upstream ENTRYPOINT and invoke its helper explicitly from
+# the function below. This also keeps Modal's runtime bootstrap running as root.
 freellmapi_image = (
     modal.Image.from_registry(FREELLMAPI_IMAGE, add_python="3.12")
+    .entrypoint([])
     .env({"FREEAPI_CONFIG_PATH": "/app/agent-freellmapi-default.json"})
     .add_local_file(
         "runtime/freellmapi-bootstrap.mjs",

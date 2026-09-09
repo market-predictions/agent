@@ -1,6 +1,6 @@
 # Agent Framework — Current Project Facts
 
-**Observed at:** 2026-09-09 Europe/Amsterdam  
+**Observed at:** 2026-09-09 15:18 Europe/Amsterdam  
 **Repository:** `market-predictions/agent`  
 **Status type:** project-local implementation snapshot only  
 **Control runtime/status authority:** **no**
@@ -53,9 +53,19 @@ At this snapshot there is no runtime implementation code in the repository. Ther
 
 ## Control onboarding state
 
-A first `MISSION_CONTRACT_V4` candidate and matching repository-authority record are being prepared in `market-predictions/control-plane` for governed adoption.
+A first Control V4 authority candidate now exists as **draft PR #250** in `market-predictions/control-plane`.
 
-Until those authority artifacts are adopted through the Control V4 authority-change discipline:
+```text
+control_candidate_pr=250
+control_candidate_base=05302235fe29e2beb2608d1ce343bb9c456cbb4a
+control_candidate_head=3496bd5fc93140238d9c3b6cc8a965499fa5f84a
+mission_candidate=control/missions/AGENT_FRAMEWORK.mission.json
+repository_authority_candidate=control/repository-authority/market-predictions__agent.json
+```
+
+The candidate adds only the Mission Contract and matching repository-authority record. It is intentionally **not merged** and is not current Control authority.
+
+Until those authority artifacts are reviewed and adopted through the Control V4 authority-change discipline:
 
 ```text
 Control may inspect this repository
@@ -63,11 +73,11 @@ but
 AGENT_FRAMEWORK is not yet an active governed Mission
 ```
 
-After adoption, current Control lifecycle/status must be read from Control's canonical V4 sources, not inferred from this file.
+After adoption, current Control lifecycle/status must be read from Control's canonical V4 sources, not inferred from this file or PR metadata.
 
 ## Expected first governed gap after adoption
 
-The intended first OPEN root is the Phase-1 carrier proof:
+The candidate Mission's first OPEN root is `AGENT-R1-GAP-01`: the Phase-1 carrier proof.
 
 ```text
 Hermes
@@ -77,9 +87,9 @@ Hermes
   -> structured result + provenance
 ```
 
-The gap is expected to require exact-head implementation/test evidence, bounded non-production Modal execution, hard model/tool/retry/time budgets, provider-key isolation, route/failure observability, repeated quality measurements, documentation alignment and the Mission-specified review policy.
+The candidate acceptance requires exact-head implementation/test evidence, bounded non-production Modal execution, hard model/tool/retry/time budgets, provider-key isolation, route/failure observability, at least 20 repeated quality runs with an initial approximately 70% human-usable quality gate, documentation alignment and fresh external exact-candidate review.
 
-The canonical gap definition and acceptance criteria exist only in the adopted Mission Contract.
+The canonical gap definition and acceptance criteria exist only after the Mission Contract is adopted on Control authority.
 
 ## Known prerequisites / likely blockers
 

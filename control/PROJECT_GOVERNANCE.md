@@ -82,6 +82,18 @@ The project roadmap explains implementation sequencing but does **not** create C
 
 Project-local `CURRENT_STATE.md` is a bounded implementation-fact snapshot only. It is never global Control runtime/status authority.
 
+## Bootstrap handoff rule
+
+The initial Control handoff is intentionally minimal:
+
+1. adopt `AGENT_FRAMEWORK` and its repository-authority record through the governed Control V4 authority path;
+2. create exactly one small implementation candidate (branch + PR) for the first eligible gap, `AGENT-R1-GAP-01`;
+3. from that candidate onward, Control owns convergence through its existing governed BUILD / REPAIR / REVIEW / PASS / integration lifecycle.
+
+The principal/bootstrap step is **not** expected to manually complete multiple roadmap phases or fully satisfy GAP-01 before Control takes over. The bootstrap candidate only needs to provide a coherent, executable starting point that preserves the Mission's hard authority boundaries and gives Control concrete repository facts to repair and review.
+
+Do not create a new `candidate-less BUILD` capability in Control merely to eliminate this one manual bootstrap step. That is a possible later Control improvement only after the existing chain has been proven with Agent.
+
 ## Project product decisions
 
 Current product decisions are:

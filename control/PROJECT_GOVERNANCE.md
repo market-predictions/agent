@@ -6,6 +6,7 @@ project_repository=market-predictions/agent
 source_of_truth=GITHUB
 control_protocol=CONTROL_V4
 control_management_status=CONTROL_MANAGED
+bootstrap_handoff_status=CANDIDATE_BINDING_BLOCKED
 project_risk_class=AGENT_EXECUTION_INFRASTRUCTURE
 production_project_mutation=NOT_AUTHORIZED
 paid_inference_fallback=NOT_AUTHORIZED
@@ -82,17 +83,19 @@ The project roadmap explains implementation sequencing but does **not** create C
 
 Project-local `CURRENT_STATE.md` is a bounded implementation-fact snapshot only. It is never global Control runtime/status authority.
 
-## Bootstrap handoff rule
+## Bootstrap handoff rule and current blocker
 
-The initial Control handoff is intentionally minimal:
+The intended minimal handoff is:
 
-1. `AGENT_FRAMEWORK` and its repository-authority record are adopted in canonical Control authority;
-2. one small implementation candidate exists for the first eligible gap, `AGENT-R1-GAP-01` — Agent PR #1 on `bootstrap/agent-r1-gap-01`;
-3. from that candidate onward, Control owns convergence through its existing governed BUILD / REPAIR / REVIEW / PASS lifecycle.
+1. `AGENT_FRAMEWORK` and its repository-authority record are adopted in canonical Control authority — **DONE**;
+2. one small implementation candidate exists for the first eligible gap, `AGENT-R1-GAP-01` — Agent PR #1 on `bootstrap/agent-r1-gap-01` — **DONE**;
+3. Control binds that existing candidate and owns convergence through governed REPAIR / REVIEW / PASS — **BLOCKED by current Control V4 semantics**.
 
-The principal/bootstrap step is **not** expected to manually complete multiple roadmap phases or fully satisfy GAP-01 before Control takes over. The bootstrap candidate only provides a coherent executable starting point that preserves the Mission's hard authority boundaries and gives Control concrete repository facts to repair and review.
+Current V4 materializes a new root task with `candidate=null` and `phase=BUILD`. The currently bound Runner explicitly YIELDs candidate-less BUILD and has no automatic existing-PR binding rule. Therefore the mere existence of Agent PR #1 is not yet sufficient to enter REPAIR/REVIEW autonomously.
 
-Do not create a new `candidate-less BUILD` capability in Control merely to eliminate this one manual bootstrap step. That is a possible later Control improvement only after the existing chain has been proven with Agent.
+The smallest required follow-up is an **existing-candidate binding** that reuses current candidate validation and `CANDIDATE_READY` semantics. It must not create code, branches or PRs, must not create a second queue/state plane, and must not silently become generic candidate-less BUILD.
+
+Do not implement a broader candidate-less BUILD engine merely to solve this bootstrap handoff. If existing-candidate binding requires a Control semantic/trust change, that change must follow current Control V4 governance and verification rules.
 
 ## Project product decisions
 

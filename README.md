@@ -56,6 +56,17 @@ Core principles:
 - **`RESULT_READY` is not business `DONE`.**
 - **No DB, queue, generic scheduler, publisher or recursive swarm before measured need.**
 
+## Control V4 governance
+
+This project is being onboarded for Control V4 management. Project-local governance is explicit and does not duplicate Control runtime state.
+
+- Project governance bootstrap: [`control/PROJECT_GOVERNANCE.md`](control/PROJECT_GOVERNANCE.md)
+- Bounded project fact snapshot: [`control/CURRENT_STATE.md`](control/CURRENT_STATE.md)
+- Canonical Control Mission path after governed adoption: `market-predictions/control-plane:control/missions/AGENT_FRAMEWORK.mission.json`
+- Canonical repository-authority path after governed adoption: `market-predictions/control-plane:control/repository-authority/market-predictions__agent.json`
+
+Until those Control authority artifacts are adopted through the governed Control V4 authority-change path, the project status is **PENDING_AUTHORITY_ADOPTION**. The roadmap does not create Control work by itself; only the adopted Mission can materialize governed gaps.
+
 Canonical architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)  
 Canonical implementation sequence: [`docs/ROADMAP.md`](docs/ROADMAP.md)  
 Historical/adversarial design rationale: [`docs/DESIGN_REVIEW_10_ITERATIONS.md`](docs/DESIGN_REVIEW_10_ITERATIONS.md)

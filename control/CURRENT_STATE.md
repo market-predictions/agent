@@ -1,6 +1,6 @@
 # Agent Framework — Current Project Facts
 
-**Observed at:** 2026-09-09 15:18 Europe/Amsterdam  
+**Observed at:** 2026-09-09 21:14 Europe/Amsterdam  
 **Repository:** `market-predictions/agent`  
 **Status type:** project-local implementation snapshot only  
 **Control runtime/status authority:** **no**
@@ -11,7 +11,7 @@
 
 ```text
 architecture_version=v0.4
-implementation_state=PRE_IMPLEMENTATION
+implementation_state=PRE_IMPLEMENTATION_WITH_BOOTSTRAP_CANDIDATE
 github_source_of_truth=true
 modal_runtime_deployed=false
 hermes_runtime_deployed=false
@@ -23,6 +23,7 @@ framework_database_present=false
 framework_queue_present=false
 production_project_write_authority=false
 control_management_status=PENDING_AUTHORITY_ADOPTION
+bootstrap_candidate_pr=1
 ```
 
 ## Current product decisions
@@ -40,40 +41,60 @@ control_management_status=PENDING_AUTHORITY_ADOPTION
 
 ## Current repository surfaces
 
-Current project documentation:
+Current canonical/project-local documentation:
 
 - `README.md` — concise entry point;
 - `docs/ARCHITECTURE.md` — canonical technical architecture;
 - `docs/ROADMAP.md` — canonical implementation sequence;
 - `docs/DESIGN_REVIEW_10_ITERATIONS.md` — historical/non-canonical design rationale;
-- `control/PROJECT_GOVERNANCE.md` — Control V4 project-local governance bootstrap;
+- `control/PROJECT_GOVERNANCE.md` — Control V4 project-local governance bootstrap and bootstrap-handoff rule;
 - `control/CURRENT_STATE.md` — this bounded snapshot.
 
-At this snapshot there is no runtime implementation code in the repository. Therefore there is no stale runtime code to retire yet.
+`main` still contains no runtime implementation code. The first implementation code exists only in draft Agent PR #1 (`bootstrap/agent-r1-gap-01`) and is intentionally incomplete so Control can converge it after governed onboarding.
 
 ## Control onboarding state
 
-A first Control V4 authority candidate now exists as **draft PR #250** in `market-predictions/control-plane`.
+The current Control V4 authority candidate is **draft PR #252** in `market-predictions/control-plane`.
 
 ```text
-control_candidate_pr=250
-control_candidate_base=05302235fe29e2beb2608d1ce343bb9c456cbb4a
-control_candidate_head=3496bd5fc93140238d9c3b6cc8a965499fa5f84a
+control_candidate_pr=252
+control_candidate_base=c92cd78dabafafbb4ea1199db0ab1312483dc6f8
+control_candidate_head=eec8ce44bb43c5e0a018032b397032e490dc4a71
 mission_candidate=control/missions/AGENT_FRAMEWORK.mission.json
 repository_authority_candidate=control/repository-authority/market-predictions__agent.json
 ```
 
-The candidate adds only the Mission Contract and matching repository-authority record. It is intentionally **not merged** and is not current Control authority.
+The previous PR #250 is closed as superseded. PR #252 adds only the Mission Contract and matching repository-authority record. It is intentionally **not merged** and is not current Control authority until governed adoption completes.
 
-Until those authority artifacts are reviewed and adopted through the Control V4 authority-change discipline:
+Until those authority artifacts are reviewed and adopted through the current Control V4 authority-change discipline:
 
 ```text
-Control may inspect this repository
+Control may inspect this repository and candidate
 but
 AGENT_FRAMEWORK is not yet an active governed Mission
 ```
 
 After adoption, current Control lifecycle/status must be read from Control's canonical V4 sources, not inferred from this file or PR metadata.
+
+## Bootstrap candidate for the first governed gap
+
+Draft Agent PR #1 is the intentionally small implementation candidate for `AGENT-R1-GAP-01`.
+
+It currently establishes only:
+
+```text
+Hermes selected runtime
+  -> FreeLLMAPI-only inference boundary
+  -> model auto through custom Hermes alias
+  -> PUBLIC_NON_PERSONAL
+  -> read-only Hermes web toolset
+  -> one-task budget envelope
+  -> local boundary tests
+```
+
+The bootstrap candidate has been locally verified with six passing stdlib unit tests and successful dry-run plan generation. It does **not** claim that Hermes, FreeLLMAPI or Modal are deployed or that GAP-01 acceptance is satisfied.
+
+After Mission adoption, Control should own further convergence of this candidate through the existing governed REPAIR / REVIEW / PASS / integration flow. The principal/bootstrap role should not manually complete multiple roadmap phases first.
 
 ## Expected first governed gap after adoption
 
@@ -99,4 +120,4 @@ A real Modal/FreeLLMAPI proof will require externally configured credentials/sec
 
 ## Cleanup rule
 
-When implementation starts, every governed change must leave one coherent current truth. Superseded direct-provider experiments, obsolete runtime paths, stale docs and conflicting configuration must be deleted rather than left as parallel alternatives unless an active governed requirement explicitly needs them.
+Every governed change must leave one coherent current truth. Superseded direct-provider experiments, obsolete runtime paths, stale docs and conflicting configuration must be deleted rather than left as parallel alternatives unless an active governed requirement explicitly needs them.

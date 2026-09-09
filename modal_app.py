@@ -18,7 +18,9 @@ import agent_carrier
 from runtime_versions import (
     FREELLMAPI_IMAGE,
     FREELLMAPI_PORT,
-    HERMES_GIT_SPEC,
+    HERMES_COMMIT,
+    HERMES_REPOSITORY,
+    HERMES_SOURCE_DIR,
     MODAL_APP_NAME,
     MODAL_FREELLMAPI_SECRET,
     MODAL_HERMES_SECRET,
@@ -63,11 +65,21 @@ freellmapi_image = (
     .env({"FREEAPI_CONFIG_PATH": "/app/agent-freellmapi-default.json"})
 )
 
+# Hermes intentionally rejects ordinary wheel/sdist installation. Upstream's
+# supported source-development path is an editable install. Because the Modal
+# image is immutable and the Git commit is exact, keeping that exact checkout
+# in the image is both supported and reproducible without using a moving shell
+# installer.
 hermes_image = (
     modal.Image.debian_slim(python_version="3.12")
     .apt_install("git", "ripgrep")
+    .run_commands(
+        f"git clone --filter=blob:none {HERMES_REPOSITORY} {HERMES_SOURCE_DIR}",
+        f"git -C {HERMES_SOURCE_DIR} checkout --detach {HERMES_COMMIT}",
+        f'test "$(git -C {HERMES_SOURCE_DIR} rev-parse HEAD)" = "{HERMES_COMMIT}"',
+        f"python -m pip install --disable-pip-version-check -e {HERMES_SOURCE_DIR}",
+    )
     .pip_install(
-        HERMES_GIT_SPEC,
         # Pin the web backends used by Hermes' built-in keyless web ring rather
         # than allowing a first agent run to lazy-install moving dependencies.
         "exa-py==2.10.2",

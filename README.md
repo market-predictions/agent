@@ -66,14 +66,15 @@ Core principles:
 
 ## Control V4 governance
 
-This project is being onboarded for Control V4 management. Project-local governance is explicit and does not duplicate Control runtime state.
+This project is **Control-managed** under the canonical Control V4 Mission and repository-authority now committed on `market-predictions/control-plane@main`.
 
-- Project governance bootstrap: [`control/PROJECT_GOVERNANCE.md`](control/PROJECT_GOVERNANCE.md)
+- Project governance: [`control/PROJECT_GOVERNANCE.md`](control/PROJECT_GOVERNANCE.md)
 - Bounded project fact snapshot: [`control/CURRENT_STATE.md`](control/CURRENT_STATE.md)
-- Canonical Control Mission path after governed adoption: `market-predictions/control-plane:control/missions/AGENT_FRAMEWORK.mission.json`
-- Canonical repository-authority path after governed adoption: `market-predictions/control-plane:control/repository-authority/market-predictions__agent.json`
+- Canonical Control Mission: `market-predictions/control-plane:control/missions/AGENT_FRAMEWORK.mission.json`
+- Canonical repository authority: `market-predictions/control-plane:control/repository-authority/market-predictions__agent.json`
+- First bootstrap implementation candidate: Agent PR #1 (`bootstrap/agent-r1-gap-01`)
 
-Until those Control authority artifacts are adopted through the governed Control V4 authority-change path, the project status is **PENDING_AUTHORITY_ADOPTION**. The roadmap does not create Control work by itself; only the adopted Mission can materialize governed gaps.
+Only the adopted Mission may materialize governed gaps. The roadmap explains implementation sequence but does not create Control work by itself. From the first bootstrap candidate onward, Control owns convergence through its governed REPAIR / REVIEW / PASS lifecycle.
 
 Canonical architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)  
 Canonical implementation sequence: [`docs/ROADMAP.md`](docs/ROADMAP.md)  

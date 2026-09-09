@@ -37,16 +37,21 @@ class AgentCarrierTests(unittest.TestCase):
         self.assertNotIn("GEMINI_API_KEY", config)
         self.assertNotIn("sk-", config)
 
-    def test_command_is_oneshot_ignore_rules_and_web_only(self):
+    def test_command_respects_hermes_parser_boundaries_and_is_web_only(self):
         command = agent_carrier.build_hermes_command(
             prompt_file=Path("prompt.txt"),
             usage_file=Path("usage.json"),
             budget=agent_carrier.Budget(),
         )
-        self.assertEqual(command[0:4], ["hermes", "--ignore-rules", "chat", "--oneshot"])
-        self.assertIn("--toolsets", command)
-        toolset_index = command.index("--toolsets")
-        self.assertEqual(command[toolset_index + 1], "web")
+        chat_index = command.index("chat")
+        usage_index = command.index("--usage-file")
+        query_index = command.index("--query-file")
+        max_turns_index = command.index("--max-turns")
+        self.assertEqual(command[0:2], ["hermes", "--ignore-rules"])
+        self.assertLess(usage_index, chat_index)
+        self.assertGreater(query_index, chat_index)
+        self.assertGreater(max_turns_index, chat_index)
+        self.assertEqual(command[command.index("--toolsets") + 1], "web")
         self.assertNotIn("terminal", command)
         self.assertNotIn("file", command)
         self.assertNotIn("browser", command)

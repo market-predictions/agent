@@ -56,6 +56,15 @@ class AgentCarrierBootstrapTests(unittest.TestCase):
         self.assertEqual(plan["model"], "auto")
         self.assertEqual(plan["toolsets"], ["web"])
 
+    def test_plan_uses_normalized_freellmapi_url(self):
+        plan = agent_carrier.build_plan(
+            task_id="t-1",
+            objective="Research a public technical standard.",
+            base_url="  https://freellm.example/v1/  ",
+            budget=agent_carrier.Budget(),
+        )
+        self.assertEqual(plan["freellmapi_base_url"], "https://freellm.example/v1")
+
     def test_execute_requires_unified_gateway_key(self):
         old = os.environ.pop(agent_carrier.KEY_ENV, None)
         try:

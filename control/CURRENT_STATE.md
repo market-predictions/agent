@@ -5,19 +5,20 @@
 **Status type:** project-local implementation snapshot only  
 **Control runtime/status authority:** **no**
 
-> This file summarizes bounded project facts. Live GitHub/Modal facts override it. It is not the Control runtime queue and never grants lifecycle authority.
+> Live GitHub/Modal facts override this snapshot. This file is not the Control runtime queue and never grants lifecycle authority.
 
 ## Current implementation state
 
 ```text
 architecture_version=v0.4
-implementation_state=DEPLOYABLE_PHASE1_CARRIER_CANDIDATE
+implementation_state=OPERATIONAL_PHASE1_CARRIER_PROVEN_IN_GITHUB_ACTIONS
 github_source_of_truth=true
+real_hermes_freellm_model_web_chain_proven=true
 modal_runtime_code_present=true
 modal_live_deployment_proven=false
+modal_deployment_blocker=EXTERNAL_ACCOUNT_CREDENTIALS_ABSENT
 hermes_runtime_pinned=true
 freellmapi_runtime_pinned=true
-local_real_hermes_freellm_ci=IN_VALIDATION
 trusted_verifier_deployed=false
 worker_fanout_deployed=false
 mobile_interactive_hermes_deployed=false
@@ -29,50 +30,52 @@ bootstrap_candidate_pr=1
 control_baseline=FROZEN
 ```
 
-## Implemented Phase-1 carrier
+## Proven Phase-1 carrier
 
-PR #1 now contains the actual minimal runtime implementation rather than only a bootstrap plan:
+PR #1 contains and has executed the actual bounded runtime chain:
 
 ```text
-Modal Hermes Function
-  -> pinned Hermes 0.21.1 / exact commit
-  -> one-shot
-  -> Hermes web toolset only
-  -> protected FreeLLMAPI /v1
-
-Modal FreeLLMAPI service
-  -> pinned v0.9.8 image digest
-  -> Modal proxy auth
-  -> stable unified bearer
-  -> keyless Kilo + OVH default bootstrap pool
-  -> optional complete FREEAPI_CONFIG_JSON provider config
+pinned Hermes 0.21.1 / exact commit
+  -> named Hermes provider freellmapi
+  -> pinned FreeLLMAPI 0.9.8 / exact image digest
+  -> keyless Kilo + OVH bootstrap
+  -> real routed free model
+  -> Hermes live web tool
+  -> strict CANDIDATE
 ```
 
-Current candidate output state is `CANDIDATE`. `RESULT_READY` remains unavailable until the separate trusted verifier is implemented in Phase 2.
+A clean GitHub-hosted proof installs Hermes from the exact source commit, pulls/starts the exact FreeLLMAPI image, verifies gateway authentication, performs a direct real `model=auto` inference with `X-Routed-Via`, and then completes the actual Hermes web-tool carrier.
 
-## Current security/capability facts
+The current output authority is `CANDIDATE`. `RESULT_READY` does not exist until the separate trusted verifier is implemented.
+
+## Security/capability facts
 
 - Hermes receives no upstream provider API keys.
 - Hermes receives no target-project production write credentials.
 - The generic inference lane is `PUBLIC_NON_PERSONAL` only.
-- FreeLLMAPI and Hermes are capped at one active Modal container each in Phase 1 and scale to zero.
-- There is no direct-provider bypass, second agent runtime, framework DB, queue, publisher, fan-out, persistent Hermes memory, Modal Sandbox, or hidden paid fallback.
-- FreeLLMAPI's default model bootstrap needs no provider key because current upstream Kilo and OVH adapters are keyless.
+- No direct-provider bypass or second agent runtime exists.
+- No framework DB, queue, publisher, fan-out, persistent Hermes memory, Sandbox, or paid fallback exists.
+- The zero-key model bootstrap uses current upstream keyless Kilo and OVH adapters.
+- Modal topology caps FreeLLMAPI and Hermes at one active container each and scales them to zero.
+
+## Modal deployment boundary
+
+The repository contains the complete selected Modal topology and deployment workflow. A live cloud deployment is **not** current fact.
+
+Observed deployment prerequisite failure: GitHub does not currently contain the account-owned `MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET`, so deployment stops before `modal deploy`. The repository and connected tools cannot create or recover the user's Modal account token. Named runtime Secrets are documented in `docs/OPERATIONS.md` and must remain outside Git.
+
+The deployment workflow now runs from `main` or explicit dispatch only; candidate commits no longer create repeated credential-failure jobs.
 
 ## Verification facts
 
-Repository CI now covers two classes:
+Candidate CI has two layers:
 
-1. deterministic carrier/config/topology tests;
-2. actual pinned upstream integration: exact Hermes install, exact FreeLLM image start/authentication, live `model=auto` call and a real local Hermes -> FreeLLMAPI -> web-tool candidate run.
+1. deterministic compile/tests/topology/contract checks;
+2. exact upstream integration with a real free model and real Hermes web-tool execution.
 
-The exact current head/run result must be read from PR #1. Do not copy a historical run number here as current authority.
+The live provider proof runs once per pull-request candidate and once after merge to `main` to avoid duplicate free-provider quota use.
 
-## Live deployment boundary
-
-The repository contains a complete Modal deployment path (`modal_app.py` and `.github/workflows/deploy-modal.yml`). A live cloud deployment cannot be claimed until the user's external Modal account credentials and named Modal Secrets exist and a remote smoke run passes.
-
-Required secrets are documented in `docs/OPERATIONS.md`. Secret absence is not permission to commit credentials.
+Exact current head/check status must always be read from PR #1 rather than copied here as authority.
 
 ## Control governance state
 
@@ -86,32 +89,14 @@ mission_revision=2026-09-09-r1
 repository_authority=control/repository-authority/market-predictions__agent.json
 ```
 
-Control is deliberately frozen during this Agent implementation. The known candidate-less BUILD / existing-candidate-binding limitation is not an Agent runtime blocker and is not worked around with a second Agent-side scheduler, queue, poller or semantic actor.
+Control remains deliberately frozen. The known candidate-less BUILD / existing-candidate binding limitation is not an Agent runtime blocker and is not worked around with another scheduler, queue, poller, or semantic actor.
 
-## First governed gap
+## Scope after first operational carrier
 
-Canonical `AGENT-R1-GAP-01` remains broader than merely getting the first runtime online. Full acceptance also requires the 20-run qualification/quality evidence, exact-head validation and required external review.
+Full `AGENT-R1-GAP-01` acceptance is broader than the proven carrier and still requires qualification/review evidence such as repeated runs and the Mission's quality gate.
 
-The current objective is the smaller operational milestone:
-
-```text
-working Hermes
-  -> working protected FreeLLMAPI
-  -> actual free model
-  -> Hermes web lookup
-  -> structured CANDIDATE
-  -> live on Modal
-```
-
-## Known open evidence
-
-- live Modal deployment/readback;
-- remote Modal end-to-end smoke;
-- exact tool-call counter enforcement if it remains required and stable upstream telemetry does not expose it;
-- 20-run qualification and initial usefulness gate;
-- Phase-2 trusted verifier;
-- external exact-candidate review for full GAP-01 acceptance.
+Later roadmap phases add independent evidence verification, optional parallelism only if measured useful, persistence only if measured necessary, caller/project integration, and finally interactive/mobile Hermes.
 
 ## Cleanup rule
 
-Every change must leave one coherent current truth. Superseded code/config/docs are deleted rather than retained as parallel alternatives unless an active requirement explicitly needs them.
+Every consequential change must leave one coherent current truth. Superseded code/config/docs are deleted instead of kept as parallel alternatives unless an active requirement explicitly needs them.

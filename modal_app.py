@@ -28,7 +28,8 @@ app = modal.App(MODAL_APP_NAME)
 
 # Service-only secret. Expected keys:
 #   ENCRYPTION_KEY        64 hex chars used by FreeLLMAPI for provider keys
-#   FREEAPI_CONFIG_JSON   optional declarative provider/routing configuration
+#   FREEAPI_CONFIG_JSON   optional; overrides the built-in keyless bootstrap
+#                         and may add any correctly configured providers.
 freellmapi_service_secret = modal.Secret.from_name(
     MODAL_FREELLMAPI_SECRET,
     required_keys=["ENCRYPTION_KEY"],
@@ -55,6 +56,11 @@ freellmapi_image = (
         "runtime/freellmapi-bootstrap.mjs",
         "/app/agent-freellmapi-bootstrap.mjs",
     )
+    .add_local_file(
+        "runtime/freellmapi.default.json",
+        "/app/agent-freellmapi-default.json",
+    )
+    .env({"FREEAPI_CONFIG_PATH": "/app/agent-freellmapi-default.json"})
 )
 
 hermes_image = (

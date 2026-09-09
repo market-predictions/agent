@@ -1,430 +1,217 @@
-# Agent Framework — Ten-Iteration Adversarial Design Review
+# Agent Framework — Historical Design Review and Decision Record
 
 **Repository:** `market-predictions/agent`  
-**Review date:** 2026-09-09  
-**Purpose:** design rationale and adversarial review history  
-**Authority:** non-canonical rationale; `docs/ARCHITECTURE.md` is the single current architecture truth.
+**Status:** historical / non-canonical rationale  
+**Current architecture:** `docs/ARCHITECTURE.md` v0.3  
+**Current roadmap:** `docs/ROADMAP.md`  
+**Date:** 2026-09-09
 
-## Review method
-
-The starting proposal combined:
-
-- GitHub as source of truth and deployment control;
-- Modal as free/near-free headless cloud compute;
-- Hermes as autonomous agent runtime;
-- FreeLLMAPI as pooled low-cost/free inference gateway;
-- parallel agents for project work;
-- optional phone/mobile interaction;
-- Control and target projects as callers/authority.
-
-The design was attacked ten times from first principles. Every iteration had to answer:
-
-1. Does this component directly serve a current business outcome?
-2. Is there a simpler proven/native mechanism?
-3. Does it create duplicate authority, state, scheduling or orchestration?
-4. What happens when an agent is fully compromised?
-5. Can behavior be verified independently of the LLM?
-6. Can obsolete/conflicting architecture be deleted rather than supported forever?
-
-The governing doctrine is the Execution & Engineering Constitution: business outcome first; solid but simple; no overengineering; first principles; proven/native solutions; least privilege; verification; one source of truth; and cleanup as part of Done.
+> This file preserves why the design changed. It does **not** define current architecture. If any statement here conflicts with `docs/ARCHITECTURE.md`, the canonical architecture wins.
 
 ---
 
-## Iteration 1 — Attack the scope: execution framework or everything-agent?
+## 1. Original ten-iteration review of v0.2
 
-### Attack
+The original Modal/Hermes/FreeLLMAPI proposal was attacked ten times from first principles.
 
-The proposal mixed two materially different products:
+### Iteration 1 — scope
 
-- a reusable project-work execution carrier;
-- a persistent interactive personal Hermes reachable from a phone.
+**Finding:** bounded project execution and a persistent mobile/personal Hermes are different products.
 
-A shared technology stack does not make them one responsibility. The interactive path introduces session continuity, persistent memory, long-lived API/gateway state, UI/client behavior and different availability expectations.
+**Decision:** keep the bounded worker carrier as core; interactive/mobile Hermes becomes a later separate service.
 
-### Failure mode
+**Current status:** retained in v0.3, but mobile Hermes is now an explicit roadmap phase because Hermes has been chosen as the long-term runtime.
 
-Trying to support both in v1 would force the core framework to solve persistence, mobile sessions and always-addressable endpoints before proving that bounded project work is useful.
+### Iteration 2 — duplicate orchestration
 
-### Decision
+**Finding:** Modal fan-out plus Hermes subagents creates two concurrency/failure authorities.
 
-**Remove interactive Hermes from v1.**
+**Decision:** Modal owns framework-level fan-out when fan-out is introduced.
 
-The core framework is only:
+**Current status:** retained. V0.3 goes further: first prove one worker before adding fan-out at all.
 
-> bounded task in -> isolated autonomous execution -> independently verified result out.
+### Iteration 3 — Hermes/Modal boundary
 
-A phone/mobile interactive adapter remains an explicit future evolution. It may reuse Hermes and FreeLLMAPI, but it is not part of the execution carrier's state or authority model.
+**Finding:** Hermes `terminal.backend: modal` leaves the Hermes process elsewhere and does not provide whole-agent headless cloud execution.
 
-### Improvement
+**Decision:** if a task needs a Sandbox, run the whole Hermes process inside it.
 
-One product, one lifecycle, one definition of success.
+**Current status:** narrowed. V0.3 starts with a Modal Function because the first task exposes only fixed safe tools. Sandbox becomes capability-triggered when shell/generated-code/repository mutation is actually required.
+
+### Iteration 4 — FreeLLMAPI placement
+
+**Finding:** placing FreeLLMAPI and all provider keys inside every worker increases worker-compromise blast radius.
+
+**Decision:** when FreeLLMAPI is introduced, run it as a separate protected service.
+
+**Current status:** retained as the eventual design, but FreeLLMAPI itself is removed from the first proof until routing/failover/diversity need is measured.
+
+### Iteration 5 — FreeLLMAPI persistence
+
+**Finding:** persistent SQLite state can preserve quota/cooldown history, but persistence adds lifecycle/concurrency complexity.
+
+**Decision:** do not add persistent DB/Volume before measured need.
+
+**Current status:** retained. Later FreeLLMAPI cold start must use a fixed encryption key plus declarative provider configuration. Persistent SQLite remains optional and single-writer if eventually added.
+
+### Iteration 6 — prompt constraints versus capability
+
+**Finding:** natural-language statements such as `no production writes` are not security controls.
+
+**Decision:** authority must eventually be machine-enforced outside Hermes.
+
+**Current status:** principle retained, mechanism deferred. V0.3 hardcodes least privilege for the single first capability class. Git-backed task profiles are introduced only when a second materially different capability/data class exists.
+
+### Iteration 7 — framework state
+
+**Finding:** a generic agent framework naturally attracts a DB, queue, retry scheduler and status service even when callers already own lifecycle.
+
+**Decision:** no framework DB, queue or business scheduler in v1.
+
+**Current status:** retained unchanged.
+
+### Iteration 8 — verification
+
+**Finding:** a worker cannot be the final authority for its own output.
+
+**Decision:** generation and trusted verification are separate.
+
+**Current status:** strengthened in v0.3. The verifier now re-fetches evidence and must be SSRF-hardened rather than checking only schema/URL shape.
+
+### Iteration 9 — mobile interaction
+
+**Finding:** mobile interactive Hermes introduces persistent sessions, memory, auth and UX concerns that should not contaminate the bounded-worker core.
+
+**Decision:** separate future service.
+
+**Current status:** retained, but explicitly planned after carrier proof. This future mobile direction is one of the reasons Hermes remains the selected runtime.
+
+### Iteration 10 — reproducibility and supply chain
+
+**Finding:** floating Hermes/FreeLLMAPI/software versions undermine reproducibility.
+
+**Decision:** pin runtime software and record provenance.
+
+**Current status:** refined. Software/runtime is pinned; dynamic model/provider inference is treated as provenance-accountable rather than falsely claimed to be fully reproducible.
 
 ---
 
-## Iteration 2 — Attack duplicate orchestration: Modal fan-out plus Hermes subagents
+## 2. External Opus review of v0.2
 
-### Attack
+An external review identified a more fundamental sequencing problem:
 
-The proposal could create workers twice:
+> the design was proving the carrier before proving the uncertain model/tool-loop quality.
+
+The review also identified concrete issues around:
+
+- ephemeral FreeLLMAPI provider configuration;
+- dynamic routing/catalog behavior versus reproducibility claims;
+- `public` data not necessarily being non-personal;
+- weak evidence verification;
+- missing cross-task/request budgets;
+- Sandbox cost/necessity for fixed-tool workers;
+- premature task profiles;
+- two-worker partitioning proving throughput rather than quality diversity.
+
+These findings materially changed the current architecture.
+
+### Adopted from the external review
+
+1. **Evidence-first build order.** Prove Hermes + one direct free provider before adding routing/fan-out infrastructure.
+2. **First pilot uses PUBLIC_NON_PERSONAL data.** SolidDesign prospecting is not the first generic free-lane pilot.
+3. **FreeLLMAPI moves to a measured optimization phase.**
+4. **Modal Function first for fixed safe tools.** Sandbox is capability-triggered later.
+5. **Independent verifier re-fetches evidence** and is explicitly SSRF-hardened.
+6. **Budgets include model calls and tool calls**, not only wall time.
+7. **Parallelism is tested for quality/diversity value**, not assumed.
+8. **Task profiles are deferred** until there is more than one capability class.
+9. **Inference is provenance-controlled, not falsely called deterministic/reproducible.**
+10. **Coverage/worker identity is required** when `PARTIAL` becomes relevant.
+
+### Not adopted as proposed
+
+The external review recommended Pydantic AI for v1 and suggested a harness comparison.
+
+The product owner explicitly chose **Hermes** as the runtime for this phase and rejected a Pydantic AI bake-off or fallback.
+
+Reason:
+
+- Hermes is already the intended long-term agent environment;
+- the next planned product phase is mobile control of Hermes from a phone;
+- a second runtime would create product/runtime fragmentation without serving the current goal.
+
+Therefore current truth is:
 
 ```text
-Modal orchestrator
-  -> Hermes supervisor
-       -> Hermes subagents
+Hermes = selected runtime
+Pydantic AI = not part of current architecture or roadmap
 ```
 
-Both Modal and Hermes can provide parallelism. Using both immediately creates two concurrency models, two failure trees, more token use and harder observability.
+This is a deliberate product constraint, not an unresolved experiment.
 
-### Failure mode
+---
 
-A parent Hermes process can create children while Modal also creates Sandboxes. Worker counts and cost become opaque; retries can multiply; nested delegation can duplicate work.
+## 3. Current architecture after review
 
-### Decision
-
-**Modal owns worker fan-out in v1.**
-
-Each independent worker is one fresh Modal Sandbox containing one complete headless Hermes process. Hermes internal delegation is disabled for the initial carrier.
+The v0.3 sequence is now:
 
 ```text
-Modal orchestrator
-  -> Sandbox/Hermes A
-  -> Sandbox/Hermes B
+Phase 1
+Hermes + one direct free provider + fixed safe tools
+        ↓
+Phase 2
+trusted evidence verifier
+        ↓
+Phase 3
+two-worker independent diversity experiment
+        ↓
+Phase 4
+FreeLLMAPI only if quota/failover/diversity trigger fires
+        ↓
+Phase 5
+Sandbox and/or task profiles only when capability triggers fire
+        ↓
+Phase 6
+Control/project integrations
+        ↓
+Phase 7
+mobile interactive Hermes
 ```
 
-### Evolution trigger
-
-Hermes internal delegation may be introduced only if measured tasks prove that hierarchical reasoning inside one worker materially improves accepted output versus simpler Modal-level fan-out.
-
-### Improvement
-
-One concurrency authority and one worker lifecycle.
+This sequence is canonicalized in `docs/ROADMAP.md`.
 
 ---
 
-## Iteration 3 — Attack the Hermes/Modal boundary
+## 4. Current non-goals inherited from the review process
 
-### Attack
+Do not add without a measured trigger:
 
-Hermes documents `terminal.backend: modal`, but that architecture leaves Hermes itself running elsewhere and moves only terminal/file execution to a Modal Sandbox.
-
-That does not satisfy the desired operating model:
-
-- no PC required;
-- no VPS required;
-- whole agent process isolated in headless cloud compute.
-
-There are also current upstream Hermes issues affecting its remote Modal backend, including sandbox detachment/lost work and remote execute-code behavior.
-
-### Decision
-
-**Run the entire Hermes worker inside a Modal Sandbox.**
-
-Inside the Sandbox Hermes uses its ordinary local terminal. Modal is the process/container isolation boundary.
-
-```text
-Modal Sandbox
-  -> Hermes one-shot
-       -> local tools inside Sandbox
-```
-
-Do not make Hermes' `terminal.backend: modal` a critical dependency of v1.
-
-### Improvement
-
-Whole-process containment and fewer moving parts.
-
----
-
-## Iteration 4 — Attack FreeLLMAPI placement
-
-### Attack
-
-Putting FreeLLMAPI beside Hermes inside every worker is simpler operationally, but it gives the same compromised worker environment access to all upstream provider credentials.
-
-A separate FreeLLMAPI service is one extra component. Does it earn its complexity?
-
-### Failure mode
-
-A prompt-injected or compromised worker that can read local environment/process/files could exfiltrate every provider key if they are co-located.
-
-### Decision
-
-**A separate protected FreeLLMAPI Modal service is justified by a concrete security boundary.**
-
-Hermes workers receive only:
-
-- the FreeLLMAPI endpoint;
-- a revocable unified FreeLLMAPI credential;
-- Modal endpoint proxy authentication material scoped to that endpoint/environment.
-
-FreeLLMAPI alone receives upstream provider keys.
-
-### Constraint
-
-FreeLLMAPI remains a single-user/internal gateway. It must not be exposed as an unauthenticated public endpoint.
-
-### Improvement
-
-Worker compromise does not automatically disclose all upstream provider accounts.
-
----
-
-## Iteration 5 — Attack persistence: do we need durable FreeLLMAPI state now?
-
-### Attack
-
-FreeLLMAPI tracks quotas/cooldowns in SQLite. Persisting its database across scale-to-zero runs can preserve useful routing state. Modal Volumes can persist files.
-
-But a persistent Volume introduces state lifecycle, commit/reload semantics and SQLite concurrency constraints.
-
-### Failure mode
-
-Multiple FreeLLMAPI replicas writing one SQLite file on a Modal Volume risk conflicting last-writer-wins updates; Modal Volumes are not a distributed database and provide no distributed file locking.
-
-### Decision
-
-**Do not require persistent FreeLLMAPI state for the first carrier proof.**
-
-V1 starts with:
-
-- one protected FreeLLMAPI service;
-- `max_containers = 1`;
-- ephemeral quota/cooldown state acceptable;
-- conservative per-task inference budgets;
-- 429/provider exhaustion treated as an expected degraded condition.
-
-### Evolution trigger
-
-Add one persistent Modal Volume for FreeLLMAPI only after measurements show that lost cross-run quota/cooldown state materially wastes available capacity.
-
-If persistence is enabled, keep FreeLLMAPI single-writer. Do not add Redis/Postgres merely to scale the router.
-
-### Improvement
-
-Security boundary retained without premature persistent infrastructure.
-
----
-
-## Iteration 6 — Attack task constraints: prompt text is not policy
-
-### Attack
-
-A task saying `no production writes` or `public data only` in natural language is not enforcement. Hermes may misunderstand it, a website may prompt-inject it, or a future skill may conflict with it.
-
-### Decision
-
-Introduce one small proven pattern: **Git-backed task profiles**.
-
-The caller supplies an objective and selects an existing profile. The profile is resolved before worker creation and defines the effective capability envelope.
-
-Example:
-
-```yaml
-id: public-research-v1
-data_class: PUBLIC
-network: PUBLIC_WEB
-target_mutation: NONE
-max_workers: 2
-max_wall_minutes: 45
-inference_lane: FREE_PUBLIC
-```
-
-The caller may narrow a profile's limits but cannot widen them dynamically.
-
-### Explicit non-goal
-
-This is not a generic policy language, plugin framework or RBAC builder. V1 needs one profile.
-
-### Improvement
-
-Authority is machine-enforced outside the LLM.
-
----
-
-## Iteration 7 — Attack framework state and asynchronous task management
-
-### Attack
-
-A generic headless agent platform naturally tempts creation of:
-
-- task database;
-- queue;
-- status API;
-- retry scheduler;
-- agent registry.
-
-But Control and target projects already own durable lifecycle where required. Modal already provides invocation/execution primitives.
-
-### Decision
-
-**No framework database, queue or task scheduler in v1.**
-
-The initial carrier runs one bounded invocation to completion and returns a result. The caller owns durable task state and successor decisions.
-
-Framework statuses are execution facts only:
-
-- `REJECTED`;
-- `FAILED`;
-- `PARTIAL`;
-- `RESULT_READY`.
-
-The framework does not emit `DONE` as business authority.
-
-### Evolution trigger
-
-Add minimal checkpoint/state only when a proven task cannot be expressed as a bounded invocation and the state clearly does not belong to Control or the target project.
-
-### Improvement
-
-No second Control plane.
-
----
-
-## Iteration 8 — Attack verification and publication
-
-### Attack
-
-If Hermes both produces and judges its own output, the swarm can confidently agree on a wrong result. If the worker also has project write credentials, validation becomes advisory rather than a boundary.
-
-### Decision
-
-Separate execution from verification:
-
-```text
-untrusted Sandbox/Hermes workers
-  -> structured candidate results
-  -> trusted deterministic verifier Function
-  -> RESULT_READY
-```
-
-The verifier runs outside worker Sandboxes and performs only deterministic/schema/evidence checks that are actually machine-verifiable.
-
-### Publication
-
-V1 has **no target-project write capability**.
-
-A future publisher, if justified, must be a separate trusted Modal Function with a narrow project-specific capability and must accept only a verified result contract.
-
-### Improvement
-
-Agent completion cannot silently become project authority.
-
----
-
-## Iteration 9 — Attack mobile interaction
-
-### Attack
-
-Hermes exposes an OpenAI-compatible API server and can support mobile/web frontends. Modal can host HTTP servers with scale-to-zero behavior. It is technically attractive to add a mobile Hermes immediately.
-
-But Hermes API-server state, session continuity, memory, cold-start behavior and a persistent `~/.hermes/state.db` create an independent stateful service. A normal Hermes messaging gateway is also a continuously running process.
-
-### Decision
-
-**Do not build mobile/interactive Hermes in v1.**
-
-Document the future pattern only:
-
-```text
-phone/mobile client
-  -> authenticated Modal web endpoint
-  -> dedicated interactive Hermes service
-  -> same protected FreeLLMAPI gateway
-```
-
-It must have its own state and security review and must not become the task/authority store for the worker framework.
-
-### Improvement
-
-The core carrier remains serverless and bounded; interactive product concerns stay optional.
-
----
-
-## Iteration 10 — Attack reproducibility, supply chain and Done
-
-### Attack
-
-Hermes and FreeLLMAPI are fast-moving projects. Using `latest`, install scripts at runtime or unpinned Actions/containers makes a result impossible to reproduce and can silently change security behavior.
-
-### Decision
-
-Before implementation is considered complete:
-
-- pin Hermes to an exact release/commit;
-- pin FreeLLMAPI to an exact release/image digest;
-- pin the Modal Python SDK version;
-- pin the worker base image/dependencies;
-- record framework Git SHA, task profile version, Hermes version and FreeLLMAPI version in every result;
-- record actual routed provider/model metadata where available;
-- keep FreeLLMAPI prompt compression and persistent response caching off initially;
-- test the exact Hermes -> FreeLLMAPI OpenAI-compatible wire path used by the worker;
-- treat provider/model substitution as observable degraded behavior, never silent correctness evidence.
-
-### Cleanup requirement
-
-The previous GitHub-Actions-first architecture is superseded and must be replaced rather than kept as a competing current design. README and canonical architecture must agree. No obsolete implementation exists yet, so there is no code migration debt at this stage.
-
-### Improvement
-
-Current repository truth becomes reproducible, auditable and clean.
-
----
-
-# Result after ten iterations
-
-The resulting smallest complete design is:
-
-```text
-Control / project / manual caller
-          |
-          | bounded task + profile
-          v
-Modal orchestrator Function
-          |
-          | deterministic partition
-          v
-    +-----+-----+
-    |           |
-    v           v
-Sandbox A    Sandbox B
-Hermes -z    Hermes -z
-    |           |
-    +-----+-----+
-          |
-          v
-protected single FreeLLMAPI service
-          |
-          v
-approved free-provider pool
-
-worker results
-    |
-    v
-trusted deterministic verifier
-    |
-    v
-RESULT_READY
-    |
-    v
-caller / project authority
-```
-
-V1 deliberately contains no:
-
-- VPS;
-- GitHub Actions execution carrier;
-- Hermes remote Modal terminal backend;
-- Hermes gateway;
-- Hermes Cron;
-- Hermes Kanban/profile team;
-- recursive swarm;
+- a second agent runtime;
+- Pydantic AI;
+- harness bake-off;
 - framework database;
 - queue/broker;
-- vector database;
-- custom model router;
-- project publisher;
-- target-project write credentials;
-- interactive/mobile Hermes service;
-- persistent FreeLLMAPI database.
+- generic scheduler;
+- persistent worker memory;
+- recursive swarm;
+- generic project adapter layer;
+- publisher/admin proxy;
+- persistent FreeLLMAPI DB;
+- Sandbox for fixed safe-tool research;
+- task-profile machinery while only one capability class exists.
 
-This is the architecture implemented by the canonical `docs/ARCHITECTURE.md` target design.
+---
+
+## 5. Historical cleanup rule
+
+Git history is the archive.
+
+Current files must describe current truth, not preserve obsolete architecture as if still active.
+
+Therefore this file records decisions and supersession explicitly, while:
+
+- `docs/ARCHITECTURE.md` defines the current target design;
+- `docs/ROADMAP.md` defines the current implementation sequence;
+- `README.md` is only a concise aligned entry point.
+
+Definition of Done requires these files and actual implementation behavior to remain aligned.

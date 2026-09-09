@@ -109,10 +109,18 @@ Rules:
 
 
 def build_hermes_command(*, prompt_file: Path, usage_file: Path, budget: Budget) -> list[str]:
+    """Build argv using Hermes 0.21.1's actual parser boundaries.
+
+    ``--usage-file`` is a top-level Hermes flag, while ``--query-file`` and
+    ``--max-turns`` belong to the ``chat`` subcommand. Keeping that distinction
+    here prevents CLI drift from becoming a runtime-only failure.
+    """
     budget.validate()
     return [
         "hermes",
         "--ignore-rules",
+        "--usage-file",
+        str(usage_file),
         "chat",
         "--oneshot",
         "--query-file",
@@ -123,8 +131,6 @@ def build_hermes_command(*, prompt_file: Path, usage_file: Path, budget: Budget)
         "web",
         "--max-turns",
         str(budget.max_turns),
-        "--usage-file",
-        str(usage_file),
     ]
 
 

@@ -18,7 +18,7 @@ from urllib.parse import urlparse
 
 
 DATA_CLASS = "PUBLIC_NON_PERSONAL"
-MODEL_ALIAS = "freellm"
+PROVIDER_ID = "freellmapi"
 MODEL_ID = "auto"
 KEY_ENV = "FREELLMAPI_API_KEY"
 BASE_URL_ENV = "FREELLMAPI_BASE_URL"
@@ -60,20 +60,26 @@ def validate_freellmapi_base_url(value: str) -> str:
 
 
 def render_hermes_config(base_url: str) -> str:
-    """Return the minimal Hermes custom-provider configuration.
+    """Return the minimal Hermes named-provider configuration.
 
-    All credential values stay in environment variables. The config only names
-    the variables and the protected FreeLLMAPI endpoint.
+    Hermes 0.21.1 reliably resolves a keyed ``providers:`` entry to its own
+    endpoint. Credential values remain in environment variables; the config
+    names only those variables and the protected FreeLLMAPI endpoint.
     """
     base_url = validate_freellmapi_base_url(base_url)
     return (
-        "model_aliases:\n"
-        f"  {MODEL_ALIAS}:\n"
-        f"    model: {json.dumps(MODEL_ID)}\n"
-        "    provider: \"custom\"\n"
+        "model:\n"
+        f"  default: {json.dumps(MODEL_ID)}\n"
+        f"  provider: {json.dumps(PROVIDER_ID)}\n"
+        "providers:\n"
+        f"  {PROVIDER_ID}:\n"
         f"    base_url: {json.dumps(base_url)}\n"
         f"    key_env: {json.dumps(KEY_ENV)}\n"
         "    api_mode: \"chat_completions\"\n"
+        f"    default_model: {json.dumps(MODEL_ID)}\n"
+        "    discover_models: false\n"
+        "    models:\n"
+        f"      - {json.dumps(MODEL_ID)}\n"
         "    extra_headers:\n"
         f"      Modal-Key: \"${{{PROXY_KEY_ENV}}}\"\n"
         f"      Modal-Secret: \"${{{PROXY_SECRET_ENV}}}\"\n"
@@ -108,29 +114,31 @@ Rules:
 """
 
 
-def build_hermes_command(*, prompt_file: Path, usage_file: Path, budget: Budget) -> list[str]:
-    """Build argv using Hermes 0.21.1's actual parser boundaries.
+def build_hermes_command(*, prompt: str, usage_file: Path, budget: Budget) -> list[str]:
+    """Build the smallest programmatic Hermes invocation for 0.21.1.
 
-    ``--usage-file`` is a top-level Hermes flag, while ``--query-file`` and
-    ``--max-turns`` belong to the ``chat`` subcommand. Keeping that distinction
-    here prevents CLI drift from becoming a runtime-only failure.
+    Top-level ``-z/--oneshot`` is Hermes' script-oriented path and prints only
+    the final response to stdout. The prompt is passed as one subprocess argv
+    element (never through a shell), so shell metacharacters are not executed.
+    Hermes' own iteration limit is supplied via ``HERMES_MAX_ITERATIONS`` in
+    :func:`execute_once`; the outer process timeout provides the wall bound.
     """
     budget.validate()
+    if not prompt.strip():
+        raise CarrierConfigError("prompt is required")
     return [
         "hermes",
         "--ignore-rules",
         "--usage-file",
         str(usage_file),
-        "chat",
-        "--oneshot",
-        "--query-file",
-        str(prompt_file),
         "--model",
-        MODEL_ALIAS,
+        MODEL_ID,
+        "--provider",
+        PROVIDER_ID,
         "--toolsets",
         "web",
-        "--max-turns",
-        str(budget.max_turns),
+        "-z",
+        prompt,
     ]
 
 
@@ -150,6 +158,7 @@ def build_plan(*, task_id: str, objective: str, base_url: str, budget: Budget) -
         "freellmapi_key_env": KEY_ENV,
         "modal_proxy_key_env": PROXY_KEY_ENV,
         "modal_proxy_secret_env": PROXY_SECRET_ENV,
+        "provider": PROVIDER_ID,
         "model": MODEL_ID,
         "toolsets": ["web"],
         "budget": asdict(budget),
@@ -226,13 +235,12 @@ def execute_once(*, task_id: str, objective: str, base_url: str, budget: Budget)
         hermes_home.mkdir(parents=True)
         (hermes_home / "config.yaml").write_text(render_hermes_config(base_url), encoding="utf-8")
 
-        prompt_file = root / "prompt.txt"
-        prompt_file.write_text(render_task_prompt(objective, budget), encoding="utf-8")
         usage_file = root / "usage.json"
-
-        command = build_hermes_command(prompt_file=prompt_file, usage_file=usage_file, budget=budget)
+        prompt = render_task_prompt(objective, budget)
+        command = build_hermes_command(prompt=prompt, usage_file=usage_file, budget=budget)
         env = os.environ.copy()
         env["HERMES_HOME"] = str(hermes_home)
+        env["HERMES_MAX_ITERATIONS"] = str(budget.max_turns)
 
         try:
             completed = subprocess.run(

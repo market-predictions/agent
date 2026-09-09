@@ -27,21 +27,11 @@ from runtime_versions import (
 
 app = modal.App(MODAL_APP_NAME)
 
-# Service-only secret. Expected keys:
-#   ENCRYPTION_KEY        64 hex chars used by FreeLLMAPI for provider keys
-#   FREEAPI_CONFIG_JSON   optional; overrides the built-in keyless bootstrap
-#                         and may add any correctly configured providers.
 freellmapi_service_secret = modal.Secret.from_name(
     MODAL_FREELLMAPI_SECRET,
     required_keys=["ENCRYPTION_KEY"],
 )
 
-# Client boundary secret. The same stable unified key is supplied to the
-# FreeLLMAPI service and Hermes, but upstream provider keys are not.
-# Expected keys:
-#   FREELLMAPI_API_KEY
-#   MODAL_PROXY_KEY
-#   MODAL_PROXY_SECRET
 freellmapi_client_secret = modal.Secret.from_name(
     MODAL_HERMES_SECRET,
     required_keys=[
@@ -51,12 +41,6 @@ freellmapi_client_secret = modal.Secret.from_name(
     ],
 )
 
-# FreeLLMAPI's published image has a Docker ENTRYPOINT that drops privileges
-# before exec'ing its command. Modal owns the container entrypoint for Function
-# images, so clear the upstream ENTRYPOINT and invoke its helper explicitly from
-# the function below. This also keeps Modal's runtime bootstrap running as root.
-# The app module imports runtime_versions, so that tiny module must be present in
-# this image as well as the Hermes image when Modal hydrates the web function.
 freellmapi_image = (
     modal.Image.from_registry(FREELLMAPI_IMAGE, add_python="3.12")
     .entrypoint([])
@@ -72,11 +56,6 @@ freellmapi_image = (
     )
 )
 
-# Hermes intentionally rejects ordinary wheel/sdist installation. Upstream's
-# supported source-development path is an editable install. Because the Modal
-# image is immutable and the Git commit is exact, keeping that exact checkout
-# in the image is both supported and reproducible without using a moving shell
-# installer.
 hermes_image = (
     modal.Image.debian_slim(python_version="3.12")
     .apt_install("git", "ripgrep")
@@ -87,23 +66,15 @@ hermes_image = (
         f"python -m pip install --disable-pip-version-check -e {HERMES_SOURCE_DIR}",
     )
     .pip_install(
-        # Pin the web backends used by Hermes' built-in keyless web ring rather
-        # than allowing a first agent run to lazy-install moving dependencies.
         "exa-py==2.10.2",
         "firecrawl-py==4.17.0",
         "parallel-web==0.4.2",
     )
-    .add_local_python_source("agent_carrier", "runtime_versions")
+    .add_local_python_source("agent_carrier", "agent_budget_plugin", "runtime_versions")
 )
 
 
 def _bootstrap_freellmapi_unified_key() -> None:
-    """Set the stable unified gateway key using FreeLLMAPI's exported DB API.
-
-    Upstream v0.9.8 generates a temporary random key during its first migration.
-    Bootstrap stdout is suppressed because upstream intentionally prints that
-    temporary key. The pinned shim then overwrites only the unified-key setting.
-    """
     completed = subprocess.run(
         [
             "/usr/local/bin/docker-entrypoint.sh",
@@ -177,6 +148,7 @@ def _probe_gateway(gateway_root: str) -> None:
     min_containers=0,
     scaledown_window=60,
 )
+@modal.concurrent(max_inputs=1)
 def run_agent(task_id: str, objective: str, gateway_root: str) -> dict:
     """Run one bounded headless Hermes task through protected FreeLLMAPI."""
     import agent_carrier
@@ -198,7 +170,6 @@ def smoke(
         "technical source and return the required structured result."
     ),
 ) -> None:
-    """Run the smallest real end-to-end Hermes -> FreeLLMAPI smoke test."""
     gateway_root = freellmapi.get_web_url()
     if not gateway_root:
         raise RuntimeError("FreeLLMAPI web URL is unavailable")

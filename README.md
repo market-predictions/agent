@@ -10,98 +10,86 @@ Consequential project work must fresh-read and apply the canonical Google Drive 
 
 https://docs.google.com/document/d/1Zf9DvT282-EDsU-SoXinJKQX5LcQC2wabkoTL0doDh0/edit
 
-The Google Drive document remains canonical; do not substitute a remembered summary or local copy. It governs engineering method while Control Mission/repository/runtime authority governs what work is authorized. See [`control/PROJECT_GOVERNANCE.md`](control/PROJECT_GOVERNANCE.md) for the mandatory read order.
+The Drive document remains canonical. See [`control/PROJECT_GOVERNANCE.md`](control/PROJECT_GOVERNANCE.md) for the required governance read order.
 
-## Current implementation — v0.4 Hermes + FreeLLMAPI on Modal
+## Current implementation — operational Phase-1 carrier
 
-PR #1 contains the first deployable bounded carrier:
+The bounded core is proven end-to-end on a clean GitHub-hosted runner:
 
 ```text
-bounded PUBLIC_NON_PERSONAL task
+PUBLIC_NON_PERSONAL task
         |
         v
-Modal Function
-  pinned Hermes v0.21.1 / exact commit
-  one one-shot worker
-  Hermes web toolset only
-  hard wall/model-turn/concurrency bounds
+Hermes 0.21.1 / exact commit
+script one-shot, web toolset only
         |
         v
-protected FreeLLMAPI Modal service
-  pinned v0.9.8 image digest
-  stable unified gateway key
-  default zero-key Kilo + OVH bootstrap pool
-  optional FREEAPI_CONFIG_JSON adds/replaces configured providers
+named provider: freellmapi / model=auto
         |
         v
-free-provider model inference
+FreeLLMAPI 0.9.8 / exact image digest
+stable unified bearer
+keyless Kilo + OVH bootstrap
+        |
+        v
+real free routed model
+        |
+        v
+Hermes live web lookup
         |
         v
 strict structured CANDIDATE
 ```
 
-`CANDIDATE` is deliberately **not** `RESULT_READY`. Phase 2 adds a separate trusted evidence verifier; only verified output may become `RESULT_READY`.
+The integration proof performs both a direct real FreeLLMAPI `model=auto` call with `X-Routed-Via` and the actual Hermes -> FreeLLMAPI -> model -> web chain. It is not a mock or dry-run-only implementation.
 
-### Runtime pins
+`CANDIDATE` is deliberately **not** `RESULT_READY`; independent evidence verification is a later phase.
 
-- Modal Python SDK: `1.5.5`
-- Hermes: release `0.21.1`, tag `v2026.9.7`, commit `2237be355906fbe6065ce1815711eee52b2d646e`
+### Exact runtime pins
+
+- Modal SDK: `1.5.5`
+- Hermes: `0.21.1`, tag `v2026.9.7`, commit `2237be355906fbe6065ce1815711eee52b2d646e`
 - FreeLLMAPI: `0.9.8`, exact GHCR image digest in [`runtime_versions.py`](runtime_versions.py)
 
-### Current runtime boundaries
+### Boundaries
 
-- Hermes is the only agent runtime; no Pydantic AI path exists.
-- FreeLLMAPI is the only inference gateway; no direct-provider bypass exists.
-- Upstream provider keys never enter the Hermes Function.
-- The first lane is `PUBLIC_NON_PERSONAL` only.
-- FreeLLMAPI is protected by both its unified bearer and Modal proxy authentication.
-- FreeLLMAPI and Hermes scale to zero and each allow at most one active container in Phase 1.
-- No framework DB, queue, publisher, persistent Hermes memory, fan-out, Sandbox, or project-write capability exists.
-- Control remains a frozen governance baseline during Agent implementation; Agent creates no second Control actor/state/transport path.
+- Hermes is the only agent runtime.
+- FreeLLMAPI is the only inference gateway.
+- Upstream provider keys never enter Hermes.
+- Generic inference is `PUBLIC_NON_PERSONAL` only.
+- Hermes gets only the `web` toolset; no shell, project writes, browser automation, delegation, messaging, gateway/Cron/Kanban, or persistent memory.
+- No framework DB, queue, publisher, fan-out, Sandbox, or paid fallback exists.
+- Control remains frozen; Agent introduces no second Control actor/state/transport path.
 
-## Run and deploy
+## Cloud deployment
 
-Deterministic local verification:
+`modal_app.py` is the selected cloud topology: one bounded Hermes Function and one protected FreeLLMAPI web service, both scale-to-zero and capped at one active container in Phase 1.
 
-```bash
-python -m pip install -r requirements.txt
-python -m unittest discover -s tests -v
-python agent_carrier.py \
-  --task-id dry-run \
-  --objective "Research a public technical standard." \
-  --freellmapi-base-url https://example.invalid/v1
-```
+The code is deployment-ready, but **live Modal deployment is not yet a proven fact** because the account-owned `MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET` are absent from GitHub. The repository cannot create or recover those credentials. Exact setup and smoke commands are in [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
 
-Modal deployment and secret setup are documented in [`docs/OPERATIONS.md`](docs/OPERATIONS.md). The deployment workflow is `.github/workflows/deploy-modal.yml`.
+`.github/workflows/deploy-modal.yml` deploys only from `main` or explicit dispatch and fails closed when account credentials are missing.
 
-## Current verification
+## Verification
 
-CI checks:
+`.github/workflows/ci.yml` runs:
 
-- deterministic unit/boundary tests;
-- Python compilation;
-- Modal app import/topology;
-- exact Hermes install from the pinned commit;
-- exact FreeLLMAPI image pull;
-- FreeLLMAPI cold-start bootstrap and unified-key authentication;
-- live free-model call through the keyless FreeLLMAPI pool;
-- a real local Hermes -> FreeLLMAPI -> model -> Hermes web-tool candidate run.
+- deterministic compilation/tests/config/topology checks;
+- exact Hermes source installation;
+- exact FreeLLMAPI image pull/start/authentication;
+- real free routed model inference;
+- real Hermes web-tool candidate execution.
 
-Exact live CI state must be read from PR #1 rather than inferred from this README.
+The live provider proof runs once per pull-request candidate and once after merge to `main`, avoiding duplicate free-provider quota consumption.
+
+## Current docs
+
+- Architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- Roadmap: [`docs/ROADMAP.md`](docs/ROADMAP.md)
+- Operations: [`docs/OPERATIONS.md`](docs/OPERATIONS.md)
+- Implementation record: [`docs/IMPLEMENTATION_LOG.md`](docs/IMPLEMENTATION_LOG.md)
+- Project-local facts: [`control/CURRENT_STATE.md`](control/CURRENT_STATE.md)
+- Historical/adversarial design rationale: [`docs/DESIGN_REVIEW_10_ITERATIONS.md`](docs/DESIGN_REVIEW_10_ITERATIONS.md)
 
 ## Control V4 governance
 
-`AGENT_FRAMEWORK` is canonically Control-managed. Control remains frozen while this Agent carrier is implemented project-locally.
-
-- Project governance: [`control/PROJECT_GOVERNANCE.md`](control/PROJECT_GOVERNANCE.md)
-- Bounded project fact snapshot: [`control/CURRENT_STATE.md`](control/CURRENT_STATE.md)
-- Canonical Control Mission: `market-predictions/control-plane:control/missions/AGENT_FRAMEWORK.mission.json`
-- Canonical repository authority: `market-predictions/control-plane:control/repository-authority/market-predictions__agent.json`
-
-The existing Control candidate-binding limitation is not an Agent implementation blocker and is not worked around inside this repository.
-
-Canonical architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)  
-Canonical implementation sequence: [`docs/ROADMAP.md`](docs/ROADMAP.md)  
-Operations: [`docs/OPERATIONS.md`](docs/OPERATIONS.md)  
-Implementation record: [`docs/IMPLEMENTATION_LOG.md`](docs/IMPLEMENTATION_LOG.md)  
-Historical/adversarial design rationale: [`docs/DESIGN_REVIEW_10_ITERATIONS.md`](docs/DESIGN_REVIEW_10_ITERATIONS.md)
+`AGENT_FRAMEWORK` remains canonically Control-managed. The working Control runtime is treated as a frozen baseline during this implementation; the existing candidate-binding limitation is neither changed nor bypassed inside Agent.

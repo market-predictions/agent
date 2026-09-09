@@ -12,72 +12,96 @@ https://docs.google.com/document/d/1Zf9DvT282-EDsU-SoXinJKQX5LcQC2wabkoTL0doDh0/
 
 The Google Drive document remains canonical; do not substitute a remembered summary or local copy. It governs engineering method while Control Mission/repository/runtime authority governs what work is authorized. See [`control/PROJECT_GOVERNANCE.md`](control/PROJECT_GOVERNANCE.md) for the mandatory read order.
 
-## Current target model — v0.4 Evidence-First Hermes + FreeLLMAPI
+## Current implementation — v0.4 Hermes + FreeLLMAPI on Modal
 
-Hermes is the selected agent runtime and FreeLLMAPI is part of the inference path from the first proof. There is no Pydantic AI bake-off or temporary direct-provider integration.
+PR #1 contains the first deployable bounded carrier:
 
 ```text
-human / caller
-     |
-     | bounded PUBLIC_NON_PERSONAL research task
-     v
+bounded PUBLIC_NON_PERSONAL task
+        |
+        v
 Modal Function
-     |
-     | pinned Hermes one-shot
-     | fixed safe tools
-     | hard model/tool/time budgets
-     v
-protected FreeLLMAPI service
-     |
-     | all configured providers eligible
-     | routing/failover observed
-     v
-free provider pool
-     |
-     v
-structured candidate result
-     |
-     v
-separate trusted evidence verifier
-     |
-     v
-RESULT_READY
-     |
-     v
-caller / project authority
+  pinned Hermes v0.21.1 / exact commit
+  one one-shot worker
+  Hermes web toolset only
+  hard wall/model-turn/concurrency bounds
+        |
+        v
+protected FreeLLMAPI Modal service
+  pinned v0.9.8 image digest
+  stable unified gateway key
+  default zero-key Kilo + OVH bootstrap pool
+  optional FREEAPI_CONFIG_JSON adds/replaces configured providers
+        |
+        v
+free-provider model inference
+        |
+        v
+strict structured CANDIDATE
 ```
 
-Phase 1 deliberately keeps everything else small: one Hermes worker, no fan-out, no Sandbox, no project writes, no framework DB/queue, no persistent Hermes memory and no task-profile framework yet.
+`CANDIDATE` is deliberately **not** `RESULT_READY`. Phase 2 adds a separate trusted evidence verifier; only verified output may become `RESULT_READY`.
 
-Core principles:
+### Runtime pins
 
-- **Hermes is the chosen runtime.**
-- **FreeLLMAPI is the canonical inference gateway from Phase 1.**
-- **All configured FreeLLMAPI providers are eligible; no hand-maintained Phase-1 provider subset.**
-- **GitHub is current truth; Modal is runtime.**
-- **Evidence before further infrastructure.**
-- **No production credentials in workers.** Provider credentials live in the FreeLLMAPI service.
-- **Public does not automatically mean non-personal.**
-- **Model calls, tool calls, retries, wall time and concurrency are bounded.**
-- **Provider/model routing and route switches are recorded where observable.**
-- **Independent verification is separate from generation.**
-- **`RESULT_READY` is not business `DONE`.**
-- **No DB, queue, generic scheduler, publisher or recursive swarm before measured need.**
+- Modal Python SDK: `1.5.5`
+- Hermes: release `0.21.1`, tag `v2026.9.7`, commit `2237be355906fbe6065ce1815711eee52b2d646e`
+- FreeLLMAPI: `0.9.8`, exact GHCR image digest in [`runtime_versions.py`](runtime_versions.py)
+
+### Current runtime boundaries
+
+- Hermes is the only agent runtime; no Pydantic AI path exists.
+- FreeLLMAPI is the only inference gateway; no direct-provider bypass exists.
+- Upstream provider keys never enter the Hermes Function.
+- The first lane is `PUBLIC_NON_PERSONAL` only.
+- FreeLLMAPI is protected by both its unified bearer and Modal proxy authentication.
+- FreeLLMAPI and Hermes scale to zero and each allow at most one active container in Phase 1.
+- No framework DB, queue, publisher, persistent Hermes memory, fan-out, Sandbox, or project-write capability exists.
+- Control remains a frozen governance baseline during Agent implementation; Agent creates no second Control actor/state/transport path.
+
+## Run and deploy
+
+Deterministic local verification:
+
+```bash
+python -m pip install -r requirements.txt
+python -m unittest discover -s tests -v
+python agent_carrier.py \
+  --task-id dry-run \
+  --objective "Research a public technical standard." \
+  --freellmapi-base-url https://example.invalid/v1
+```
+
+Modal deployment and secret setup are documented in [`docs/OPERATIONS.md`](docs/OPERATIONS.md). The deployment workflow is `.github/workflows/deploy-modal.yml`.
+
+## Current verification
+
+CI checks:
+
+- deterministic unit/boundary tests;
+- Python compilation;
+- Modal app import/topology;
+- exact Hermes install from the pinned commit;
+- exact FreeLLMAPI image pull;
+- FreeLLMAPI cold-start bootstrap and unified-key authentication;
+- live free-model call through the keyless FreeLLMAPI pool;
+- a real local Hermes -> FreeLLMAPI -> model -> Hermes web-tool candidate run.
+
+Exact live CI state must be read from PR #1 rather than inferred from this README.
 
 ## Control V4 governance
 
-This project is **Control-managed** under the canonical Control V4 Mission and repository-authority committed on `market-predictions/control-plane@main`.
+`AGENT_FRAMEWORK` is canonically Control-managed. Control remains frozen while this Agent carrier is implemented project-locally.
 
 - Project governance: [`control/PROJECT_GOVERNANCE.md`](control/PROJECT_GOVERNANCE.md)
 - Bounded project fact snapshot: [`control/CURRENT_STATE.md`](control/CURRENT_STATE.md)
 - Canonical Control Mission: `market-predictions/control-plane:control/missions/AGENT_FRAMEWORK.mission.json`
 - Canonical repository authority: `market-predictions/control-plane:control/repository-authority/market-predictions__agent.json`
-- First bootstrap implementation candidate: Agent PR #1 (`bootstrap/agent-r1-gap-01`)
 
-Only the adopted Mission may materialize governed gaps. The roadmap explains implementation sequence but does not create Control work by itself.
-
-**Current handoff boundary:** current Control V4 materializes a new root with no candidate and its bound Runner always YIELDs candidate-less BUILD. It does not automatically bind an already-open bootstrap PR. The working Control runtime is therefore treated as a frozen baseline: Agent will not introduce a second scheduler, semantic worker, queue, polling bridge or synthetic Control event source merely to bypass that limitation. PR #1 remains the bounded bootstrap candidate while Agent is hardened project-locally. Autonomous Control takeover is deferred until the canonical Control interface can represent that handoff without parallel machinery.
+The existing Control candidate-binding limitation is not an Agent implementation blocker and is not worked around inside this repository.
 
 Canonical architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)  
 Canonical implementation sequence: [`docs/ROADMAP.md`](docs/ROADMAP.md)  
+Operations: [`docs/OPERATIONS.md`](docs/OPERATIONS.md)  
+Implementation record: [`docs/IMPLEMENTATION_LOG.md`](docs/IMPLEMENTATION_LOG.md)  
 Historical/adversarial design rationale: [`docs/DESIGN_REVIEW_10_ITERATIONS.md`](docs/DESIGN_REVIEW_10_ITERATIONS.md)

@@ -4,6 +4,14 @@ Standalone bounded autonomous-agent execution framework for Control and multiple
 
 The repository is intentionally **not** a project database, Control replacement, scheduler, queue, or project-specific extension.
 
+## Mandatory engineering doctrine
+
+Consequential project work must fresh-read and apply the canonical Google Drive **Execution & Engineering Constitution**:
+
+https://docs.google.com/document/d/1Zf9DvT282-EDsU-SoXinJKQX5LcQC2wabkoTL0doDh0/edit
+
+The Google Drive document remains canonical; do not substitute a remembered summary or local copy. It governs engineering method while Control Mission/repository/runtime authority governs what work is authorized. See [`control/PROJECT_GOVERNANCE.md`](control/PROJECT_GOVERNANCE.md) for the mandatory read order.
+
 ## Current target model — v0.4 Evidence-First Hermes + FreeLLMAPI
 
 Hermes is the selected agent runtime and FreeLLMAPI is part of the inference path from the first proof. There is no Pydantic AI bake-off or temporary direct-provider integration.

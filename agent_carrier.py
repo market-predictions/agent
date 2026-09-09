@@ -206,7 +206,11 @@ def _validate_usage(usage: object, budget: Budget) -> dict | None:
 
 
 def execute_once(*, task_id: str, objective: str, base_url: str, budget: Budget) -> dict:
-    """Run one bounded Hermes invocation against protected FreeLLMAPI."""
+    """Run one bounded Hermes invocation against protected FreeLLMAPI.
+
+    A successful Phase-1 invocation emits CANDIDATE. RESULT_READY is reserved
+    for the later trusted evidence-verification boundary.
+    """
     plan = build_plan(task_id=task_id, objective=objective, base_url=base_url, budget=budget)
     _require_runtime_secrets()
 
@@ -264,7 +268,7 @@ def execute_once(*, task_id: str, objective: str, base_url: str, budget: Budget)
 
         return {
             **plan,
-            "status": "RESULT_READY",
+            "status": "CANDIDATE",
             "exit_code": 0,
             "result": structured,
             "usage": usage,

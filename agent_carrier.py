@@ -1,10 +1,10 @@
 """Minimal bootstrap carrier for AGENT-R1-GAP-01.
 
 This is intentionally not the completed Phase-1 carrier. It establishes the
-smallest executable boundary that Control can converge: Hermes is the only
-agent runtime, FreeLLMAPI is the only inference endpoint, the initial data
-class is PUBLIC_NON_PERSONAL, and Hermes receives only the read-only `web`
-toolset.
+smallest project-local executable boundary prepared for later governed
+convergence: Hermes is the only agent runtime, FreeLLMAPI is the only inference
+endpoint, the initial data class is PUBLIC_NON_PERSONAL, and Hermes receives
+only the read-only `web` toolset.
 """
 
 from __future__ import annotations
@@ -96,7 +96,7 @@ def build_hermes_command(*, prompt_file: Path, usage_file: Path, budget: Budget)
 
 def build_plan(*, task_id: str, objective: str, base_url: str, budget: Budget) -> dict:
     budget.validate()
-    validate_freellmapi_base_url(base_url)
+    clean_base_url = validate_freellmapi_base_url(base_url)
     if not task_id.strip():
         raise CarrierConfigError("task_id is required")
     if not objective.strip():
@@ -106,7 +106,7 @@ def build_plan(*, task_id: str, objective: str, base_url: str, budget: Budget) -
         "data_class": DATA_CLASS,
         "agent_runtime": "hermes",
         "inference_gateway": "freellmapi",
-        "freellmapi_base_url": base_url.rstrip("/"),
+        "freellmapi_base_url": clean_base_url,
         "freellmapi_key_env": KEY_ENV,
         "model": MODEL_ID,
         "toolsets": ["web"],
@@ -119,8 +119,8 @@ def execute_once(*, task_id: str, objective: str, base_url: str, budget: Budget)
 
     This bootstrap does not deploy Modal or FreeLLMAPI. It expects Hermes to be
     installed and a protected FreeLLMAPI endpoint plus unified key to be
-    supplied externally. Those deployment facts remain work for Control under
-    AGENT-R1-GAP-01.
+    supplied externally. Those deployment facts remain open AGENT-R1-GAP-01
+    work; this module does not create a second Control execution path.
     """
     plan = build_plan(task_id=task_id, objective=objective, base_url=base_url, budget=budget)
     if not os.environ.get(KEY_ENV):

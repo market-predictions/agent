@@ -1,6 +1,9 @@
 name: Deploy Agent to Modal
 
 on:
+  push:
+    branches:
+      - bootstrap/agent-r1-gap-01
   workflow_dispatch:
     inputs:
       run_smoke:
@@ -42,5 +45,5 @@ jobs:
       - name: Deploy pinned runtime
         run: modal deploy modal_app.py
       - name: End-to-end smoke
-        if: ${{ inputs.run_smoke }}
+        if: ${{ github.event_name == 'push' || inputs.run_smoke }}
         run: modal run modal_app.py::smoke

@@ -66,7 +66,7 @@ Core principles:
 
 ## Control V4 governance
 
-This project is **Control-managed** under the canonical Control V4 Mission and repository-authority now committed on `market-predictions/control-plane@main`.
+This project is **Control-managed** under the canonical Control V4 Mission and repository-authority committed on `market-predictions/control-plane@main`.
 
 - Project governance: [`control/PROJECT_GOVERNANCE.md`](control/PROJECT_GOVERNANCE.md)
 - Bounded project fact snapshot: [`control/CURRENT_STATE.md`](control/CURRENT_STATE.md)
@@ -74,7 +74,9 @@ This project is **Control-managed** under the canonical Control V4 Mission and r
 - Canonical repository authority: `market-predictions/control-plane:control/repository-authority/market-predictions__agent.json`
 - First bootstrap implementation candidate: Agent PR #1 (`bootstrap/agent-r1-gap-01`)
 
-Only the adopted Mission may materialize governed gaps. The roadmap explains implementation sequence but does not create Control work by itself. From the first bootstrap candidate onward, Control owns convergence through its governed REPAIR / REVIEW / PASS lifecycle.
+Only the adopted Mission may materialize governed gaps. The roadmap explains implementation sequence but does not create Control work by itself.
+
+**Current handoff blocker:** current Control V4 materializes a new root with no candidate and its bound Runner always YIELDs candidate-less BUILD. It does not automatically bind an already-open bootstrap PR. Therefore Agent is onboarded and PR #1 exists, but autonomous REPAIR/REVIEW takeover cannot start until a governed existing-candidate binding is available. Do not solve this by silently adding candidate-less BUILD.
 
 Canonical architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)  
 Canonical implementation sequence: [`docs/ROADMAP.md`](docs/ROADMAP.md)  

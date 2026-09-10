@@ -267,10 +267,23 @@ def _validate_budget_state(state: object, budget: Budget, *, require_web_tool: b
     if state.get("policy_violation"):
         raise CarrierConfigError(f"hard policy violation: {state['policy_violation']}")
     if require_web_tool:
-        if state.get("tool_calls", 0) < 1:
+        tool_calls = state.get("tool_calls", 0)
+        completed = state.get("tool_calls_completed")
+        successes = state.get("tool_successes")
+        failures = state.get("tool_failures")
+        for field, value in (
+            ("tool_calls_completed", completed),
+            ("tool_successes", successes),
+            ("tool_failures", failures),
+        ):
+            if not isinstance(value, int) or value < 0:
+                raise CarrierConfigError(f"invalid hard-budget telemetry field: {field}")
+        if tool_calls < 1:
             raise CarrierConfigError("required live web tool call was not observed")
-        if state.get("tool_calls_completed") != state.get("tool_calls"):
+        if completed != tool_calls or successes + failures != completed:
             raise CarrierConfigError("Hermes tool loop did not complete cleanly")
+        if successes < 1:
+            raise CarrierConfigError("required live web lookup did not succeed")
     return state
 
 

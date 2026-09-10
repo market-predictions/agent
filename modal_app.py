@@ -149,10 +149,16 @@ def _probe_gateway(gateway_root: str) -> None:
     scaledown_window=60,
 )
 @modal.concurrent(max_inputs=1)
-def run_agent(task_id: str, objective: str, gateway_root: str) -> dict:
-    """Run one bounded headless Hermes task through protected FreeLLMAPI."""
+def run_agent(task_id: str, objective: str) -> dict:
+    """Run one bounded headless Hermes task through the deployed FreeLLMAPI service."""
     import agent_carrier
 
+    # Resolve the protected gateway inside trusted runtime code. Callers never
+    # supply a credential-bearing destination, so they cannot redirect the
+    # bearer/proxy credentials or bypass the canonical FreeLLMAPI service.
+    gateway_root = freellmapi.get_web_url()
+    if not gateway_root:
+        raise RuntimeError("FreeLLMAPI web URL is unavailable")
     gateway_root = gateway_root.rstrip("/")
     _probe_gateway(gateway_root)
     return agent_carrier.execute_once(
@@ -170,10 +176,7 @@ def smoke(
         "technical source and return the required structured result."
     ),
 ) -> None:
-    gateway_root = freellmapi.get_web_url()
-    if not gateway_root:
-        raise RuntimeError("FreeLLMAPI web URL is unavailable")
-    result = run_agent.remote("modal-smoke", objective, gateway_root)
+    result = run_agent.remote("modal-smoke", objective)
     print(json.dumps(result, indent=2, sort_keys=True))
     if result.get("status") != "CANDIDATE":
         raise SystemExit(1)

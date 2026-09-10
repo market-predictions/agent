@@ -39,13 +39,17 @@ class RuntimeContractTests(unittest.TestCase):
         self.assertNotIn("modal.Sandbox", source)
         self.assertNotIn("Pydantic", source)
 
-    def test_worker_does_not_receive_provider_secret(self):
+    def test_worker_does_not_receive_provider_secret_or_caller_gateway_url(self):
         source = (ROOT / "modal_app.py").read_text(encoding="utf-8")
         worker_start = source.index("def run_agent")
         worker_decorator = source.rfind("@app.function", 0, worker_start)
         worker_section = source[worker_decorator:]
+        signature = source[worker_start : source.index("-> dict:", worker_start)]
         self.assertIn("secrets=[freellmapi_client_secret]", worker_section)
         self.assertNotIn("secrets=[freellmapi_service_secret", worker_section)
+        self.assertNotIn("gateway_root", signature)
+        self.assertIn("gateway_root = freellmapi.get_web_url()", worker_section)
+        self.assertIn('run_agent.remote("modal-smoke", objective)', worker_section)
 
 
 if __name__ == "__main__":

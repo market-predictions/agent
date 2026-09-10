@@ -61,6 +61,7 @@ def _run_metrics(result: object) -> dict[str, Any]:
             "structured_claims": 0,
             "http_source_claims": 0,
             "tool_loop_completed": False,
+            "web_tool_succeeded": False,
         }
 
     claims: list[object] = []
@@ -80,11 +81,17 @@ def _run_metrics(result: object) -> dict[str, Any]:
         and telemetry.get("tool_calls", 0) >= 1
         and telemetry.get("tool_calls_completed") == telemetry.get("tool_calls")
     )
+    web_tool_succeeded = bool(
+        isinstance(telemetry, dict)
+        and isinstance(telemetry.get("tool_successes"), int)
+        and telemetry.get("tool_successes", 0) >= 1
+    )
     return {
         "candidate": result.get("status") == "CANDIDATE",
         "structured_claims": len(claims),
         "http_source_claims": http_source_claims,
         "tool_loop_completed": tool_loop_completed,
+        "web_tool_succeeded": web_tool_succeeded,
     }
 
 
@@ -125,12 +132,16 @@ def _aggregate(runs: list[dict[str, Any]]) -> dict[str, Any]:
     completed_tool_loops = sum(
         1 for run in runs if run["metrics"]["tool_loop_completed"]
     )
+    successful_web_runs = sum(
+        1 for run in runs if run["metrics"]["web_tool_succeeded"]
+    )
     return {
         "attempted_runs": len(runs),
         "candidate_runs": candidate_runs,
         "failed_or_non_candidate_runs": len(runs) - candidate_runs,
         "structured_source_bearing_runs": structured_runs,
         "completed_web_tool_loops": completed_tool_loops,
+        "successful_web_tool_runs": successful_web_runs,
         "structural_candidate_rate": round(candidate_runs / len(runs), 3) if runs else 0.0,
         "total_model_calls": _sum_int("model_calls"),
         "total_tool_calls": _sum_int("tool_calls"),
@@ -144,17 +155,13 @@ def main() -> int:
     if len(OBJECTIVES) != 20:
         raise RuntimeError("Phase-1 qualification must contain exactly 20 fixed tasks")
 
-    gateway = modal.Function.from_name(MODAL_APP_NAME, "freellmapi")
     runner = modal.Function.from_name(MODAL_APP_NAME, "run_agent")
-    gateway_root = gateway.get_web_url()
-    if not gateway_root:
-        raise RuntimeError("deployed FreeLLMAPI web URL is unavailable")
 
     runs: list[dict[str, Any]] = []
     for index, objective in enumerate(OBJECTIVES, start=1):
         task_id = f"phase1-q-{index:02d}"
         try:
-            result: object = runner.remote(task_id, objective, gateway_root)
+            result: object = runner.remote(task_id, objective)
             exception = None
         except Exception as exc:  # preserve a complete 20-run sample
             result = None
@@ -172,7 +179,7 @@ def main() -> int:
         )
 
     document = {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "qualification_id": QUALIFICATION_ID,
         "observed_at": datetime.now(timezone.utc).isoformat(),
         "candidate_sha": os.environ.get("GITHUB_SHA"),

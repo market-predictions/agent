@@ -93,7 +93,7 @@ hermes_image = (
 # credentials remain in the existing agent-hermes Secret.
 hermes_dashboard_image = (
     modal.Image.from_registry(HERMES_DASHBOARD_NODE_IMAGE, add_python="3.12")
-    .apt_install("git", "ripgrep")
+    .apt_install("git", "ripgrep", "build-essential")
     .run_commands(
         f"git clone --filter=blob:none {HERMES_REPOSITORY} {HERMES_SOURCE_DIR}",
         f"git -C {HERMES_SOURCE_DIR} checkout --detach {HERMES_COMMIT}",

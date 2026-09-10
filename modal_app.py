@@ -196,6 +196,44 @@ def _start_volume_committer() -> None:
     threading.Thread(target=loop, daemon=True, name="hermes-volume-commit").start()
 
 
+def _validate_dashboard_effective_policy(gateway_root: str) -> None:
+    """Fail closed unless Hermes itself resolves the intended managed policy."""
+    expected_base_url = f"{gateway_root.rstrip('/')}/v1"
+    os.environ["FREELLMAPI_BASE_URL"] = expected_base_url
+
+    # Import only inside the Hermes dashboard image. `modal_app.py` must remain
+    # importable in ordinary CI without installing the Hermes runtime locally.
+    from hermes_cli.config import load_config
+
+    config = load_config()
+    model = config.get("model") if isinstance(config, dict) else None
+    providers = config.get("providers") if isinstance(config, dict) else None
+    provider = providers.get("freellmapi") if isinstance(providers, dict) else None
+    expected_headers = {
+        "Modal-Key": os.environ["MODAL_PROXY_KEY"],
+        "Modal-Secret": os.environ["MODAL_PROXY_SECRET"],
+    }
+
+    valid = (
+        isinstance(model, dict)
+        and model.get("default") == "auto"
+        and model.get("provider") == "freellmapi"
+        and config.get("fallback_providers") == []
+        and config.get("toolsets") == ["web"]
+        and config.get("max_concurrent_sessions") == 1
+        and isinstance(provider, dict)
+        and provider.get("base_url") == expected_base_url
+        and provider.get("key_env") == "FREELLMAPI_API_KEY"
+        and provider.get("default_model") == "auto"
+        and provider.get("models") == ["auto"]
+        and provider.get("extra_headers") == expected_headers
+    )
+    if not valid:
+        # Deliberately do not print effective config: it contains protected
+        # proxy credentials after ${...} expansion.
+        raise RuntimeError("Hermes managed dashboard policy is not effective")
+
+
 @app.function(
     image=hermes_image,
     secrets=[freellmapi_client_secret],
@@ -247,9 +285,9 @@ def dashboard() -> None:
     _probe_gateway(gateway_root)
 
     os.makedirs(HERMES_DASHBOARD_HOME, exist_ok=True)
+    _validate_dashboard_effective_policy(gateway_root)
     env = os.environ.copy()
     env["HERMES_HOME"] = HERMES_DASHBOARD_HOME
-    env["FREELLMAPI_BASE_URL"] = f"{gateway_root}/v1"
 
     _start_volume_committer()
     subprocess.Popen(

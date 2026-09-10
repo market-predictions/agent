@@ -81,6 +81,18 @@ class RuntimeContractTests(unittest.TestCase):
         self.assertNotIn("\n  - delegation\n", policy)
         self.assertNotIn("\n  - browser\n", policy)
 
+    def test_dashboard_startup_fails_closed_if_managed_policy_is_not_effective(self):
+        source = (ROOT / "modal_app.py").read_text(encoding="utf-8")
+        self.assertIn("def _validate_dashboard_effective_policy", source)
+        self.assertIn("from hermes_cli.config import load_config", source)
+        self.assertIn('model.get("provider") == "freellmapi"', source)
+        self.assertIn('config.get("fallback_providers") == []', source)
+        self.assertIn('config.get("toolsets") == ["web"]', source)
+        self.assertIn('config.get("max_concurrent_sessions") == 1', source)
+        self.assertIn('provider.get("extra_headers") == expected_headers', source)
+        self.assertIn("Hermes managed dashboard policy is not effective", source)
+        self.assertIn("_validate_dashboard_effective_policy(gateway_root)", source)
+
     def test_dashboard_oauth_identity_is_configuration_not_secret_material(self):
         versions = (ROOT / "runtime_versions.py").read_text(encoding="utf-8")
         self.assertIn("HERMES_DASHBOARD_OAUTH_CLIENT_ID", versions)

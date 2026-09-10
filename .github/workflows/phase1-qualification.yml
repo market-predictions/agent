@@ -1,0 +1,55 @@
+name: Phase 1 Qualification
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - bootstrap/agent-r1-gap-01
+    paths:
+      - qualification/phase1-run-request.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-phase1-qualification
+  cancel-in-progress: false
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: agent-modal
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Install pinned Modal CLI
+        run: python -m pip install --disable-pip-version-check -r requirements.txt
+      - name: Refuse missing deployment credentials
+        run: |
+          test -n "$MODAL_TOKEN_ID"
+          test -n "$MODAL_TOKEN_SECRET"
+          modal token info
+      - name: Bootstrap Modal runtime secrets
+        run: python -m scripts.bootstrap_modal_runtime
+      - name: Deploy exact candidate runtime
+        run: modal deploy modal_app.py
+      - name: Run fixed 20-task qualification sample
+        run: python scripts/phase1_qualification.py
+      - name: Preserve qualification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: phase1-qualification-${{ github.sha }}
+          path: qualification/evidence/phase1-qualification.json
+          if-no-files-found: error
+          retention-days: 30

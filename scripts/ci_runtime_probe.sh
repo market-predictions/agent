@@ -7,6 +7,10 @@ export ENCRYPTION_KEY="$(printf 'a%.0s' $(seq 1 64))"
 export FREELLMAPI_API_KEY="freellmapi-ci-${GITHUB_RUN_ID:-local}"
 export MODAL_PROXY_KEY="ci-local-key"
 export MODAL_PROXY_SECRET="ci-local-secret"
+# The disposable Hermes user plugin imports the canonical policy module from
+# this repository. Make that module path explicit for the child `hermes`
+# process instead of relying on console-script sys.path behavior.
+export PYTHONPATH="$PWD${PYTHONPATH:+:$PYTHONPATH}"
 
 cleanup() {
   docker rm -f "$CONTAINER" >/dev/null 2>&1 || true

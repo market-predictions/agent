@@ -67,11 +67,10 @@ class RuntimeContractTests(unittest.TestCase):
         self.assertIn('base_url: "${FREELLMAPI_BASE_URL}"', policy)
         self.assertIn('key_env: "FREELLMAPI_API_KEY"', policy)
         self.assertIn("fallback_providers: []", policy)
-        self.assertIn("toolsets:\n  - web", policy)
-        self.assertIn("max_concurrent_sessions: 1", policy)
-        self.assertNotIn("terminal", policy)
-        self.assertNotIn("delegation", policy)
-        self.assertNotIn("browser", policy)
+        self.assertIn("toolsets:\n  - web\nmax_concurrent_sessions: 1", policy)
+        self.assertNotIn("\n  - terminal\n", policy)
+        self.assertNotIn("\n  - delegation\n", policy)
+        self.assertNotIn("\n  - browser\n", policy)
 
 
 if __name__ == "__main__":

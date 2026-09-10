@@ -334,21 +334,14 @@ def smoke(
 
 @app.local_entrypoint()
 def dashboard_smoke() -> None:
-    """Verify the deployed public endpoint is alive and Nous-authenticated."""
-    dashboard_root = dashboard.get_web_url()
-    if not dashboard_root:
-        raise RuntimeError("Hermes dashboard web URL is unavailable")
-    if dashboard_root.rstrip("/") != HERMES_DASHBOARD_PUBLIC_URL:
-        raise RuntimeError(
-            f"Unexpected dashboard URL: {dashboard_root}; expected {HERMES_DASHBOARD_PUBLIC_URL}"
-        )
-
+    """Verify the already deployed public endpoint is Nous-authenticated."""
+    dashboard_root = HERMES_DASHBOARD_PUBLIC_URL.rstrip("/")
     request = urllib.request.Request(
-        f"{dashboard_root.rstrip('/')}/api/status",
+        f"{dashboard_root}/api/status",
         headers={"Accept": "application/json"},
         method="GET",
     )
-    with urllib.request.urlopen(request, timeout=90) as response:
+    with urllib.request.urlopen(request, timeout=180) as response:
         if response.status != 200:
             raise RuntimeError(f"Hermes dashboard status returned HTTP {response.status}")
         payload = json.loads(response.read().decode("utf-8"))

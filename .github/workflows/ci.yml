@@ -1,0 +1,87 @@
+name: Agent CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  carrier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Install pinned deployment tooling
+        run: python -m pip install --disable-pip-version-check -r requirements.txt
+      - name: Compile Python
+        run: python -m compileall -q agent_carrier.py agent_budget_plugin.py modal_app.py runtime_versions.py scripts tests
+      - name: Run deterministic tests
+        run: python -m unittest discover -s tests -v
+      - name: Import Modal app without deployment credentials
+        run: python -c "import modal_app; assert modal_app.app is not None"
+      - name: Verify bounded dry-run plan
+        run: |
+          python agent_carrier.py \
+            --task-id ci-bootstrap \
+            --objective "Research a public technical standard." \
+            --freellmapi-base-url https://freellm.example/v1 \
+            > /tmp/agent-plan.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          plan = json.loads(Path('/tmp/agent-plan.json').read_text())
+          assert plan['data_class'] == 'PUBLIC_NON_PERSONAL'
+          assert plan['agent_runtime'] == 'hermes'
+          assert plan['inference_gateway'] == 'freellmapi'
+          assert plan['provider'] == 'freellmapi'
+          assert plan['model'] == 'auto'
+          assert plan['toolsets'] == ['web']
+          assert plan['budget']['max_concurrent_tasks'] == 1
+          assert plan['budget']['max_retries'] == 1
+          assert plan['budget']['max_tool_calls'] == 20
+          PY
+
+  upstream-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Install exact Hermes commit through upstream-supported source path
+        run: |
+          set -euo pipefail
+          HERMES_REPO="$(python -c 'import runtime_versions; print(runtime_versions.HERMES_REPOSITORY)')"
+          HERMES_COMMIT="$(python -c 'import runtime_versions; print(runtime_versions.HERMES_COMMIT)')"
+          git clone --filter=blob:none "$HERMES_REPO" /tmp/hermes-agent
+          git -C /tmp/hermes-agent checkout --detach "$HERMES_COMMIT"
+          test "$(git -C /tmp/hermes-agent rev-parse HEAD)" = "$HERMES_COMMIT"
+          python -m pip install --disable-pip-version-check -e /tmp/hermes-agent
+          python -m pip install --disable-pip-version-check \
+            'exa-py==2.10.2' \
+            'firecrawl-py==4.17.0' \
+            'parallel-web==0.4.2'
+          hermes --version
+      - name: Pull exact FreeLLMAPI image digest
+        run: |
+          IMAGE="$(python -c 'import runtime_versions; print(runtime_versions.FREELLMAPI_IMAGE)')"
+          docker pull "$IMAGE"
+      - name: Prove FreeLLMAPI model and real Hermes tool path
+        run: bash scripts/ci_runtime_probe.sh

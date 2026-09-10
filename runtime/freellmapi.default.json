@@ -1,0 +1,15 @@
+{
+  "keys": [
+    {
+      "platform": "kilo",
+      "label": "keyless"
+    },
+    {
+      "platform": "ovh",
+      "label": "keyless"
+    }
+  ],
+  "routing": {
+    "strategy": "balanced"
+  }
+}

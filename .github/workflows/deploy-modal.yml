@@ -13,7 +13,7 @@ on:
         required: true
         default: false
         type: boolean
-  # One-time candidate promotion trigger, retry after native build-toolchain fix.
+  # One-time candidate promotion trigger, final production-endpoint verification.
   push:
     branches:
       - feature/hermes-dashboard

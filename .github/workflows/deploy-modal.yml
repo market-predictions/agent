@@ -13,6 +13,11 @@ on:
         required: true
         default: false
         type: boolean
+  push:
+    branches:
+      - feature/hermes-dashboard
+    paths:
+      - .github/workflows/deploy-modal.yml
 
 permissions:
   contents: read

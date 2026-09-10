@@ -1,0 +1,38 @@
+# Administrator-managed policy for the interactive Hermes dashboard.
+# Mounted at /etc/hermes/config.yaml so Hermes' native managed-scope overlay
+# keeps these authority boundaries immutable across every interactive profile.
+model:
+  default: "auto"
+  provider: "freellmapi"
+
+providers:
+  freellmapi:
+    base_url: "${FREELLMAPI_BASE_URL}"
+    key_env: "FREELLMAPI_API_KEY"
+    api_mode: "chat_completions"
+    default_model: "auto"
+    discover_models: false
+    models:
+      - "auto"
+    extra_headers:
+      Modal-Key: "${MODAL_PROXY_KEY}"
+      Modal-Secret: "${MODAL_PROXY_SECRET}"
+
+# No direct-provider fallback and no autonomous shell/browser/delegation in the
+# first interactive layer. Profiles, sessions, memory and skills may remain
+# user-managed, but their effective inference/tool authority cannot override
+# this managed overlay.
+fallback_providers: []
+toolsets:
+  - web
+max_concurrent_sessions: 1
+
+database:
+  # Modal Volume is shared/persistent storage; avoid SQLite WAL assumptions on
+  # a remote mounted filesystem.
+  journal_mode: delete
+
+agent:
+  api_max_retries: 2
+  max_turns: 12
+  run_budget_seconds: 600

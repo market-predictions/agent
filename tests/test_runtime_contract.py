@@ -28,6 +28,13 @@ class RuntimeContractTests(unittest.TestCase):
             r"^node:26-bookworm-slim@sha256:[0-9a-f]{64}$",
         )
         self.assertEqual(runtime_versions.HERMES_DASHBOARD_PORT, 9119)
+        self.assertEqual(
+            runtime_versions.HERMES_DASHBOARD_PUBLIC_URL,
+            "https://market-predictions--agent-carrier-dashboard.modal.run",
+        )
+        self.assertTrue(
+            runtime_versions.HERMES_DASHBOARD_OAUTH_CLIENT_ID.startswith("agent:")
+        )
 
     def test_bounded_worker_stays_small_protected_and_single_input(self):
         source = (ROOT / "modal_app.py").read_text(encoding="utf-8")
@@ -46,7 +53,6 @@ class RuntimeContractTests(unittest.TestCase):
         dashboard_decorator = source.index("@app.function", worker_start)
         worker_section = source[worker_decorator:dashboard_decorator]
         self.assertIn("secrets=[freellmapi_client_secret]", worker_section)
-        self.assertNotIn("hermes_dashboard_auth_secret", worker_section)
         self.assertNotIn("volumes=", worker_section)
 
     def test_interactive_dashboard_uses_native_hermes_and_one_persistent_volume(self):
@@ -56,10 +62,13 @@ class RuntimeContractTests(unittest.TestCase):
         self.assertIn("HERMES_DASHBOARD_NODE_IMAGE", source)
         self.assertIn("npm run build", source)
         self.assertIn('"hermes",\n            "dashboard"', source)
-        self.assertIn("hermes_dashboard_auth_secret", source)
-        self.assertIn('required_keys=["HERMES_DASHBOARD_OAUTH_CLIENT_ID"]', source)
+        self.assertIn("HERMES_DASHBOARD_OAUTH_CLIENT_ID", source)
+        self.assertIn("HERMES_DASHBOARD_PUBLIC_URL", source)
         self.assertIn("max_containers=1", source)
         self.assertIn("_start_volume_committer()", source)
+        self.assertIn("def dashboard_smoke()", source)
+        self.assertNotIn("MODAL_HERMES_DASHBOARD_AUTH_SECRET", source)
+        self.assertNotIn("hermes_dashboard_auth_secret", source)
 
     def test_managed_dashboard_policy_preserves_authority_boundaries(self):
         policy = (ROOT / "runtime/hermes-managed-dashboard.yaml").read_text(encoding="utf-8")
@@ -71,6 +80,12 @@ class RuntimeContractTests(unittest.TestCase):
         self.assertNotIn("\n  - terminal\n", policy)
         self.assertNotIn("\n  - delegation\n", policy)
         self.assertNotIn("\n  - browser\n", policy)
+
+    def test_dashboard_oauth_identity_is_configuration_not_secret_material(self):
+        versions = (ROOT / "runtime_versions.py").read_text(encoding="utf-8")
+        self.assertIn("HERMES_DASHBOARD_OAUTH_CLIENT_ID", versions)
+        self.assertIn("HERMES_DASHBOARD_PUBLIC_URL", versions)
+        self.assertNotIn("MODAL_HERMES_DASHBOARD_AUTH_SECRET", versions)
 
 
 if __name__ == "__main__":

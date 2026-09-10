@@ -8,6 +8,11 @@ on:
         required: true
         default: true
         type: boolean
+      run_qualification:
+        description: Run the fixed 20-task Phase-1 qualification after deploy
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -19,7 +24,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
     environment: agent-modal
     env:
       MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
@@ -44,6 +49,19 @@ jobs:
         run: python -m scripts.bootstrap_modal_runtime
       - name: Deploy pinned runtime
         run: modal deploy modal_app.py
-      - name: End-to-end smoke
+      - name: Dashboard auth-gate smoke
+        run: modal run modal_app.py::dashboard_smoke
+      - name: End-to-end bounded-worker smoke
         if: ${{ inputs.run_smoke }}
         run: modal run modal_app.py::smoke
+      - name: Fixed 20-task Phase-1 qualification
+        if: ${{ inputs.run_qualification }}
+        run: python -m scripts.phase1_qualification
+      - name: Preserve qualification evidence
+        if: ${{ always() && inputs.run_qualification }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: phase1-qualification-${{ github.sha }}
+          path: qualification/evidence/phase1-qualification.json
+          if-no-files-found: error
+          retention-days: 30

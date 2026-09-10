@@ -1,21 +1,21 @@
 # Interactive Hermes Dashboard
 
-**Status:** implementation candidate; not yet publicly enabled  
-**Runtime:** native Hermes 0.21.1 Web Dashboard on Modal  
-**Intended endpoint:** `https://market-predictions--agent-carrier-dashboard.modal.run`
+**Status:** implementation candidate; public OAuth registration completed; deployment verification pending  
+**Runtime:** native Hermes `0.21.1` Web Dashboard on Modal  
+**Endpoint:** `https://market-predictions--agent-carrier-dashboard.modal.run`
 
 ## Purpose
 
-Expose Hermes' own browser chat/operations interface without making ChatGPT the execution runtime. GitHub remains source of truth for code and policy, Modal supplies compute and persistent interactive state, and FreeLLMAPI remains the only inference gateway.
+Expose Hermes' own browser chat/operations interface without making ChatGPT the execution runtime. GitHub remains source of truth for code and managed policy, Modal supplies compute and persistent interactive state, and FreeLLMAPI remains the only inference gateway.
 
-This surface is intentionally separate from the stateless bounded Control worker. Its profiles, sessions and memory are user interaction state only: they are not Control mission/runtime state, framework queue state or target-project business truth.
+This surface is separate from the stateless bounded Control worker. Interactive profiles, sessions and memory are user state only: they are not Control mission/runtime state, framework queue state or target-project business truth.
 
 ## Architecture
 
 ```text
 browser / phone
       |
-      | HTTPS + Hermes OAuth
+      | HTTPS + Nous OAuth
       v
 native Hermes Web Dashboard
       |
@@ -23,7 +23,7 @@ native Hermes Web Dashboard
       v
 one Modal Volume
       |
-      | model=auto / provider=freellmapi
+      | managed provider=freellmapi / model=auto
       v
 protected FreeLLMAPI service
       |
@@ -47,27 +47,29 @@ The first interactive release pins:
 - SQLite `journal_mode=delete` for the remote mounted state filesystem;
 - a finite per-turn run budget.
 
-Users may still use native Hermes profiles, sessions, skills, memory and ordinary non-managed preferences. Managed inference/tool authority cannot be overridden through the dashboard config editor.
+Users may use native Hermes profiles, sessions, skills, memory and ordinary non-managed preferences. Managed inference/tool authority cannot be overridden through the dashboard config editor.
 
 No terminal, filesystem mutation, browser automation, code execution or delegation is authorized in this first interactive layer. Those capabilities require the separately governed stronger-isolation path.
 
 ## Authentication
 
-A non-loopback Hermes dashboard must never be started without an auth provider.
+The public dashboard uses Hermes' native Nous Portal OAuth provider. A non-loopback Hermes dashboard fails closed when no valid auth provider is configured.
 
-The initial implementation uses Hermes' native Nous Portal OAuth provider rather than username/password on a public internet endpoint. Deployment therefore requires the Modal secret `agent-hermes-dashboard-auth` containing:
+The Nous Portal registration is:
 
-```text
-HERMES_DASHBOARD_OAUTH_CLIENT_ID=agent:<provisioned-instance-id>
-```
+- dashboard name: `Agent Carrier Modal`;
+- public base URL: `https://market-predictions--agent-carrier-dashboard.modal.run`;
+- callback: `https://market-predictions--agent-carrier-dashboard.modal.run/auth/callback`.
 
-The client ID must be provisioned/registered through Nous Portal. It is not invented by this repository. Until that credential exists, the dashboard remains implemented but intentionally undeployed.
+`HERMES_DASHBOARD_OAUTH_CLIENT_ID` is an OAuth public client identifier, not a credential, so it is versioned with the public URL in `runtime_versions.py`. No extra Modal Secret exists for it. Real FreeLLMAPI and Modal proxy credentials remain in the existing protected `agent-hermes` Secret.
+
+The older localhost-only Nous registration is intentionally left untouched until the public login path is verified, after which it can be revoked manually in Nous Portal.
 
 ## Persistence
 
 Interactive `HERMES_HOME` is mounted from the single named Modal Volume `agent-hermes-home` at `/data/hermes`.
 
-There is only one dashboard container. A small background commit loop persists Volume changes approximately every 10 seconds. This means normal profile/session/memory changes survive container scale-down/restart while avoiding a second database or state service.
+There is only one dashboard container. A small background commit loop persists Volume changes approximately every 10 seconds. This keeps normal profile/session/memory state across scale-down/restart without introducing Redis, Postgres or another state service.
 
 ## Deployment
 
@@ -78,15 +80,14 @@ The dashboard is part of the existing `agent-carrier` Modal App. It does not get
     -> modal deploy modal_app.py
 ```
 
-When OAuth registration is available, deploy the exact reviewed candidate through that existing workflow and verify:
+That workflow runs `modal_app.py::dashboard_smoke` after deployment. The smoke must prove:
 
-1. `/api/status` is reachable;
-2. unauthenticated private dashboard/API routes are rejected;
-3. Nous OAuth login succeeds;
-4. `/chat` establishes its authenticated WebSocket/PTY path;
-5. a chat reaches FreeLLMAPI and returns model output;
-6. a new session survives container restart/scale-down;
-7. managed provider/toolset policy remains effective after attempted UI configuration changes.
+1. the deployed URL exactly matches the registered public URL;
+2. `/api/status` is reachable;
+3. `auth_required=true`;
+4. the `nous` auth provider is active.
+
+The final user-facing verification is then browser login followed by a real `/chat` session through FreeLLMAPI and a persistence check across a container restart/scale-down.
 
 ## Domain
 

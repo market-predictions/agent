@@ -11,7 +11,7 @@
 
 ```text
 architecture_version=v0.4
-implementation_state=OPERATIONAL_PHASE1_CARRIER_PROVEN_GITHUB_AND_MODAL
+implementation_state=PHASE1_CARRIER_QUALIFIED_EXTERNAL_REVIEW_PENDING
 github_source_of_truth=true
 real_hermes_freellm_model_web_chain_proven=true
 modal_runtime_code_present=true
@@ -19,6 +19,11 @@ modal_live_deployment_proven=true
 modal_remote_smoke_proven=true
 modal_deployment_blocker=NONE
 modal_runtime_secret_bootstrap_proven=true
+phase1_qualification_runs=20
+phase1_structured_candidate_rate=0.90
+phase1_human_usable_rate=0.90
+phase1_supported_candidate_claim_rate=1.00
+phase1_external_review_passed=false
 hermes_runtime_pinned=true
 freellmapi_runtime_pinned=true
 trusted_verifier_deployed=false
@@ -32,7 +37,7 @@ bootstrap_candidate_pr=1
 control_baseline=FROZEN
 ```
 
-## Proven Phase-1 carrier
+## Proven and qualified Phase-1 carrier
 
 PR #1 contains and has executed the actual bounded runtime chain:
 
@@ -48,9 +53,11 @@ pinned Hermes 0.21.1 / exact commit
 
 A clean GitHub-hosted proof installs Hermes from the exact source commit, pulls/starts the exact FreeLLMAPI image, verifies gateway authentication, performs a direct real `model=auto` inference with `X-Routed-Via`, and then completes the actual Hermes web-tool carrier.
 
-The same pinned carrier is now also deployed on Modal. The live promotion authenticated from GitHub Actions, created the required runtime credential boundary, deployed the protected FreeLLMAPI service plus bounded Hermes Function, and completed the remote smoke with `CANDIDATE`.
+The same pinned carrier is deployed on Modal. The live promotion authenticated from GitHub Actions, created the required runtime credential boundary, deployed the protected FreeLLMAPI service plus bounded Hermes Function, and completed the remote smoke with `CANDIDATE`.
 
-The current output authority is `CANDIDATE`. `RESULT_READY` does not exist until the separate trusted verifier is implemented.
+The fixed Phase-1 qualification then executed 20 sequential `PUBLIC_NON_PERSONAL` research tasks through the live Modal carrier. Eighteen returned strict source-bearing candidates. Manual source readback confirmed all 18 candidate claims, producing a 90% human-usable run rate against the Mission's initial approximately 70% gate. Both non-candidate runs were strict-schema failures and remained fail-closed. Detailed evidence identity and review are in `qualification/PHASE1_QUALIFICATION_REVIEW.md`.
+
+The current output authority remains `CANDIDATE`. Qualification does not create `RESULT_READY`; that requires the separate trusted verifier.
 
 ## Security/capability facts
 
@@ -58,7 +65,9 @@ The current output authority is `CANDIDATE`. `RESULT_READY` does not exist until
 - Hermes receives no target-project production write credentials.
 - The generic inference lane is `PUBLIC_NON_PERSONAL` only.
 - No direct-provider bypass or second agent runtime exists.
-- No framework DB, queue, publisher, fan-out, persistent Hermes memory, Sandbox, or paid fallback exists.
+- Hermes exposes only the `web` toolset in the bounded worker.
+- Hard model-call, tool-call, retry, wall-time and concurrency limits are enforced fail-closed.
+- No framework DB, queue, publisher, fan-out, persistent Hermes memory, Sandbox, or paid fallback exists in PR #1.
 - The zero-key model bootstrap uses current upstream keyless Kilo and OVH adapters.
 - Modal topology caps FreeLLMAPI and Hermes at one active container each and scales them to zero.
 - GitHub holds only the Modal deployment token pair as encrypted Actions Secrets; generated runtime credentials remain in Modal Secrets.
@@ -77,11 +86,11 @@ GitHub Actions repository Secrets
   -> modal deploy modal_app.py
   -> protected FreeLLMAPI web service
   -> bounded Hermes Function
-  -> remote smoke
-  -> CANDIDATE
+  -> optional remote smoke / qualification
+  -> CANDIDATE evidence
 ```
 
-The temporary branch-push trigger used to prove the first deployment has been removed. Ordinary source pushes therefore do not automatically deploy or spend Modal compute.
+The one-time qualification trigger and temporary second deployment workflow were removed after the first evidence run. The qualification harness remains reusable only as an explicit option on the canonical deployment workflow. Ordinary source pushes therefore do not automatically deploy or spend Modal compute.
 
 ## Verification facts
 
@@ -92,7 +101,9 @@ Candidate CI has two layers:
 
 The live provider proof runs once per pull-request candidate and once per merge to `main` to avoid duplicate free-provider quota use. Modal promotion is separately explicit.
 
-Exact current head/check status must always be read from PR #1 rather than copied here as authority.
+The 20-run qualification evidence is bound to runtime candidate `a74871525458e47f69fa2c01ba6d0bdfc4a01202`; later PR #1 cleanup changes only evidence/documentation/workflow surfaces and does not relax or replace the measured worker runtime. Exact current PR head/check status must always be read live from PR #1.
+
+The remaining `AGENT-R1-GAP-01` acceptance gate is a fresh external exact-candidate review after final exact-head CI.
 
 ## Control governance state
 
@@ -108,11 +119,11 @@ repository_authority=control/repository-authority/market-predictions__agent.json
 
 Control remains deliberately frozen. The known candidate-less BUILD / existing-candidate binding limitation is not an Agent runtime blocker and is not worked around with another scheduler, queue, poller, or semantic actor.
 
-## Scope after first operational carrier
+A separate proposed Mission revision may change later gap sequencing; until merged into Control main it is not canonical authority and is intentionally not reflected here as current Control state.
 
-Full `AGENT-R1-GAP-01` acceptance is broader than the proven carrier and still requires qualification/review evidence such as repeated runs and the Mission's quality gate.
+## Scope after Phase-1 acceptance
 
-Later roadmap phases add independent evidence verification, optional parallelism only if measured useful, persistence only if measured necessary, caller/project integration, and finally interactive/mobile Hermes.
+The first carrier is qualified but not yet externally accepted. Later governed work may add interactive Hermes, independent evidence verification, optional parallelism only if measured useful, and bounded caller/project integration. Their exact sequence comes from the current canonical Mission, not from this snapshot.
 
 ## Cleanup rule
 

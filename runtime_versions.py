@@ -1,8 +1,4 @@
-"""Pinned runtime identities for the first operational Agent carrier.
-
-This module is deliberately boring: one place owns every correctness-relevant
-runtime pin used by Modal, tests, and operator documentation.
-"""
+"""Pinned runtime identities for the Agent carrier and interactive Hermes UI."""
 
 MODAL_VERSION = "1.5.5"
 
@@ -20,6 +16,13 @@ HERMES_DASHBOARD_NODE_IMAGE = (
 )
 HERMES_DASHBOARD_PORT = 9119
 HERMES_DASHBOARD_HOME = "/data/hermes"
+HERMES_DASHBOARD_PUBLIC_URL = (
+    "https://market-predictions--agent-carrier-dashboard.modal.run"
+)
+# OAuth client IDs are public identifiers, not credentials. Keeping this value
+# in GitHub avoids an unnecessary third Modal Secret while real credentials
+# remain confined to the existing protected runtime Secrets.
+HERMES_DASHBOARD_OAUTH_CLIENT_ID = "agent:cmtvyr0070021gm0azzjkg522"
 
 FREELLMAPI_VERSION = "0.9.8"
 FREELLMAPI_IMAGE = (
@@ -33,5 +36,4 @@ FREELLMAPI_PORT = 3001
 MODAL_APP_NAME = "agent-carrier"
 MODAL_FREELLMAPI_SECRET = "agent-freellmapi"
 MODAL_HERMES_SECRET = "agent-hermes"
-MODAL_HERMES_DASHBOARD_AUTH_SECRET = "agent-hermes-dashboard-auth"
 MODAL_HERMES_DASHBOARD_VOLUME = "agent-hermes-home"

@@ -1,10 +1,4 @@
-"""Modal runtime for the Agent carrier and its separate interactive Hermes UI.
-
-The bounded worker remains stateless and authority-limited. The browser-facing
-Hermes dashboard is a separate one-user surface with persistent Hermes state,
-while GitHub-managed policy keeps FreeLLMAPI and the web-only tool boundary
-immutable through Hermes' native managed-scope overlay.
-"""
+"""Modal runtime for the bounded Agent carrier and separate interactive Hermes UI."""
 
 from __future__ import annotations
 
@@ -23,12 +17,13 @@ from runtime_versions import (
     HERMES_COMMIT,
     HERMES_DASHBOARD_HOME,
     HERMES_DASHBOARD_NODE_IMAGE,
+    HERMES_DASHBOARD_OAUTH_CLIENT_ID,
     HERMES_DASHBOARD_PORT,
+    HERMES_DASHBOARD_PUBLIC_URL,
     HERMES_REPOSITORY,
     HERMES_SOURCE_DIR,
     MODAL_APP_NAME,
     MODAL_FREELLMAPI_SECRET,
-    MODAL_HERMES_DASHBOARD_AUTH_SECRET,
     MODAL_HERMES_DASHBOARD_VOLUME,
     MODAL_HERMES_SECRET,
 )
@@ -47,13 +42,6 @@ freellmapi_client_secret = modal.Secret.from_name(
         "MODAL_PROXY_KEY",
         "MODAL_PROXY_SECRET",
     ],
-)
-
-# The public dashboard uses Hermes' native Nous Portal OAuth provider. A public
-# bind without this provider fails closed inside Hermes itself.
-hermes_dashboard_auth_secret = modal.Secret.from_name(
-    MODAL_HERMES_DASHBOARD_AUTH_SECRET,
-    required_keys=["HERMES_DASHBOARD_OAUTH_CLIENT_ID"],
 )
 
 # One writer only. This stores interactive profiles/sessions/memory; it is not
@@ -95,9 +83,9 @@ hermes_image = (
     .add_local_python_source("agent_carrier", "agent_budget_plugin", "runtime_versions")
 )
 
-# Reuse Hermes upstream's pinned Node 26 base and its native web/TUI build
-# sequence. This avoids a custom dashboard frontend and avoids a second Node
-# installation mechanism.
+# Native Hermes dashboard/TUI, built from the same exact upstream commit. The
+# OAuth client id is intentionally ordinary configuration: OAuth client ids are
+# public identifiers. Real gateway credentials remain in the existing Secret.
 hermes_dashboard_image = (
     modal.Image.from_registry(HERMES_DASHBOARD_NODE_IMAGE, add_python="3.12")
     .apt_install("git", "ripgrep")
@@ -116,9 +104,13 @@ hermes_dashboard_image = (
         "firecrawl-py==4.17.0",
         "parallel-web==0.4.2",
     )
-    .env({"HERMES_HOME": HERMES_DASHBOARD_HOME})
-    # Default copy=False mounts this policy file at container startup. It stays
-    # outside the writable Hermes home and is the single GitHub-managed policy.
+    .env(
+        {
+            "HERMES_HOME": HERMES_DASHBOARD_HOME,
+            "HERMES_DASHBOARD_OAUTH_CLIENT_ID": HERMES_DASHBOARD_OAUTH_CLIENT_ID,
+            "HERMES_DASHBOARD_PUBLIC_URL": HERMES_DASHBOARD_PUBLIC_URL,
+        }
+    )
     .add_local_file(
         "runtime/hermes-managed-dashboard.yaml",
         "/etc/hermes/config.yaml",
@@ -158,7 +150,7 @@ def _bootstrap_freellmapi_unified_key() -> None:
     requires_proxy_auth=True,
 )
 def freellmapi() -> None:
-    """Start the pinned FreeLLMAPI server behind Modal proxy authentication."""
+    """Start pinned FreeLLMAPI behind Modal proxy authentication."""
     _bootstrap_freellmapi_unified_key()
     subprocess.Popen(
         [
@@ -198,7 +190,7 @@ def _start_volume_committer() -> None:
             time.sleep(10)
             try:
                 hermes_dashboard_volume.commit()
-            except Exception as exc:  # pragma: no cover - observable runtime warning
+            except Exception as exc:  # pragma: no cover - runtime warning path
                 print(f"Hermes dashboard volume commit failed: {type(exc).__name__}")
 
     threading.Thread(target=loop, daemon=True, name="hermes-volume-commit").start()
@@ -231,7 +223,7 @@ def run_agent(task_id: str, objective: str, gateway_root: str) -> dict:
 
 @app.function(
     image=hermes_dashboard_image,
-    secrets=[freellmapi_client_secret, hermes_dashboard_auth_secret],
+    secrets=[freellmapi_client_secret],
     volumes={HERMES_DASHBOARD_HOME: hermes_dashboard_volume},
     cpu=1.0,
     memory=2048,
@@ -243,9 +235,10 @@ def run_agent(task_id: str, objective: str, gateway_root: str) -> dict:
 @modal.web_server(HERMES_DASHBOARD_PORT, startup_timeout=180)
 def dashboard() -> None:
     """Serve native Hermes Web Dashboard with persistent interactive state."""
-    client_id = os.environ.get("HERMES_DASHBOARD_OAUTH_CLIENT_ID", "").strip()
-    if not client_id.startswith("agent:"):
-        raise RuntimeError("Hermes dashboard OAuth client id is missing or invalid")
+    if not HERMES_DASHBOARD_OAUTH_CLIENT_ID.startswith("agent:"):
+        raise RuntimeError("Hermes dashboard OAuth client id is invalid")
+    if not HERMES_DASHBOARD_PUBLIC_URL.startswith("https://"):
+        raise RuntimeError("Hermes dashboard public URL must use HTTPS")
 
     gateway_root = freellmapi.get_web_url()
     if not gateway_root:
@@ -289,3 +282,31 @@ def smoke(
     print(json.dumps(result, indent=2, sort_keys=True))
     if result.get("status") != "CANDIDATE":
         raise SystemExit(1)
+
+
+@app.local_entrypoint()
+def dashboard_smoke() -> None:
+    """Verify the deployed public endpoint is alive and Nous-authenticated."""
+    dashboard_root = dashboard.get_web_url()
+    if not dashboard_root:
+        raise RuntimeError("Hermes dashboard web URL is unavailable")
+    if dashboard_root.rstrip("/") != HERMES_DASHBOARD_PUBLIC_URL:
+        raise RuntimeError(
+            f"Unexpected dashboard URL: {dashboard_root}; expected {HERMES_DASHBOARD_PUBLIC_URL}"
+        )
+
+    request = urllib.request.Request(
+        f"{dashboard_root.rstrip('/')}/api/status",
+        headers={"Accept": "application/json"},
+        method="GET",
+    )
+    with urllib.request.urlopen(request, timeout=90) as response:
+        if response.status != 200:
+            raise RuntimeError(f"Hermes dashboard status returned HTTP {response.status}")
+        payload = json.loads(response.read().decode("utf-8"))
+
+    if payload.get("auth_required") is not True:
+        raise RuntimeError("Hermes dashboard auth gate is not engaged")
+    if "nous" not in payload.get("auth_providers", []):
+        raise RuntimeError("Hermes dashboard Nous OAuth provider is not active")
+    print(json.dumps({"dashboard": dashboard_root, "auth": "nous", "status": "OK"}))

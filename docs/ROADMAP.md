@@ -47,7 +47,7 @@ Implemented and verified:
 - named Hermes provider `freellmapi`, model `auto`;
 - Hermes `web` toolset only;
 - strict `PUBLIC_NON_PERSONAL` instruction and JSON candidate contract;
-- wall/turn/model-call/concurrency bounds;
+- hard wall/turn/model-call/tool-call/retry/concurrency bounds;
 - FreeLLMAPI `0.9.8` exact image digest;
 - stable unified-key bootstrap through FreeLLMAPI's own DB API;
 - keyless Kilo + OVH declarative bootstrap;
@@ -88,22 +88,33 @@ The runtime bootstrap generates credentials in-process, never prints them, prese
 
 # Phase 1C — Qualification / AGENT-R1-GAP-01 evidence
 
-## Status: NEXT
+## Status: QUALIFIED — EXTERNAL REVIEW REMAINS
 
-The first working cloud carrier is not full Mission acceptance.
+The fixed 20-run `PUBLIC_NON_PERSONAL` qualification completed against runtime candidate `a74871525458e47f69fa2c01ba6d0bdfc4a01202`.
 
-Required next evidence:
+Measured evidence:
 
-- at least 20 repeated `PUBLIC_NON_PERSONAL` runs;
-- structured-output success rate;
-- web-tool completion rate;
-- supported/unsupported claim rate;
-- model calls, failures/retries and wall time;
-- actual provider/model route where observable;
-- initial approximately 70% human-usefulness gate;
-- exact-head validation and required external review.
+- attempted runs: **20**;
+- strict structured candidates: **18/20 = 90%**;
+- human-usable runs after source readback: **18/20 = 90%**;
+- completed web-tool loops: **20/20 = 100%**;
+- manually supported candidate claims: **18/18 = 100%**;
+- model calls: **66**;
+- tool calls: **47**;
+- retries: **0**;
+- provider errors: **0**;
+- aggregate carrier wall time: **580.178 seconds**;
+- multiple free route/model identities observed.
 
-`max_tool_calls=20` remains a declared target, not an independently enforced counter, until Hermes exposes stable exact tool-call telemetry or a minimal verified wrapper earns its place.
+The two rejected runs are preserved as failures: one invalid JSON response and one result that violated the exact `summary` + `claims` schema after consuming the bounded model-call budget. The carrier remained fail-closed; the parser was not weakened to improve the score.
+
+The initial approximately 70% human-usefulness gate is therefore satisfied at **90%**. See [`qualification/PHASE1_QUALIFICATION_REVIEW.md`](../qualification/PHASE1_QUALIFICATION_REVIEW.md) for the evidence identity, per-run review and source-support assessment.
+
+The fixed qualification harness remains reusable through the single canonical `.github/workflows/deploy-modal.yml` workflow via its explicit `run_qualification` input. The temporary second deployment workflow and one-shot trigger artifact were removed after the first evidence run.
+
+`max_tool_calls=20` is enforced by the native Hermes policy plugin at `pre_tool_call`; it is no longer merely a declared target.
+
+Remaining GAP-01 gate: final exact-head validation plus the required fresh external exact-candidate review.
 
 Do not add fan-out to hide weak single-worker quality.
 

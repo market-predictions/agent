@@ -13,6 +13,7 @@ on:
         required: true
         default: false
         type: boolean
+  # One-time candidate promotion trigger. Remove after dashboard deployment proof.
   push:
     branches:
       - feature/hermes-dashboard
@@ -57,7 +58,7 @@ jobs:
       - name: Dashboard auth-gate smoke
         run: modal run modal_app.py::dashboard_smoke
       - name: End-to-end bounded-worker smoke
-        if: ${{ inputs.run_smoke }}
+        if: ${{ github.event_name == 'push' || inputs.run_smoke }}
         run: modal run modal_app.py::smoke
       - name: Fixed 20-task Phase-1 qualification
         if: ${{ inputs.run_qualification }}

@@ -1,0 +1,8 @@
+{
+  "qualification_id": "AGENT-R1-GAP-01-PHASE1-20",
+  "reason": "fresh post-external-review security hardening proof",
+  "runtime_parent": "9847a8c456f04ce5624cb7beed58ac5b030344eb",
+  "data_class": "PUBLIC_NON_PERSONAL",
+  "fixed_run_count": 20,
+  "requested_on": "2026-09-10"
+}

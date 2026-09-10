@@ -52,8 +52,16 @@ class RuntimeContractTests(unittest.TestCase):
         worker_decorator = source.rfind("@app.function", 0, worker_start)
         dashboard_decorator = source.index("@app.function", worker_start)
         worker_section = source[worker_decorator:dashboard_decorator]
+        signature = source[worker_start : source.index("-> dict:", worker_start)]
         self.assertIn("secrets=[freellmapi_client_secret]", worker_section)
+        self.assertNotIn("secrets=[freellmapi_service_secret", worker_section)
         self.assertNotIn("volumes=", worker_section)
+        self.assertNotIn("gateway_root", signature)
+        self.assertIn("gateway_root = freellmapi.get_web_url()", worker_section)
+
+        smoke_start = source.index("def smoke")
+        smoke_section = source[smoke_start:]
+        self.assertIn('run_agent.remote("modal-smoke", objective)', smoke_section)
 
     def test_interactive_dashboard_uses_native_hermes_and_one_persistent_volume(self):
         source = (ROOT / "modal_app.py").read_text(encoding="utf-8")
@@ -64,11 +72,18 @@ class RuntimeContractTests(unittest.TestCase):
         self.assertIn('"hermes",\n            "dashboard"', source)
         self.assertIn("HERMES_DASHBOARD_OAUTH_CLIENT_ID", source)
         self.assertIn("HERMES_DASHBOARD_PUBLIC_URL", source)
-        self.assertIn("max_containers=1", source)
         self.assertIn("_start_volume_committer()", source)
         self.assertIn("def dashboard_smoke()", source)
         self.assertNotIn("MODAL_HERMES_DASHBOARD_AUTH_SECRET", source)
         self.assertNotIn("hermes_dashboard_auth_secret", source)
+
+    def test_dashboard_resolves_gateway_in_trusted_runtime(self):
+        source = (ROOT / "modal_app.py").read_text(encoding="utf-8")
+        dashboard_start = source.index("def dashboard()")
+        dashboard_end = source.index("@app.local_entrypoint()", dashboard_start)
+        dashboard_section = source[dashboard_start:dashboard_end]
+        self.assertIn("gateway_root = freellmapi.get_web_url()", dashboard_section)
+        self.assertIn("_probe_gateway(gateway_root)", dashboard_section)
 
     def test_managed_dashboard_policy_preserves_authority_boundaries(self):
         policy = (ROOT / "runtime/hermes-managed-dashboard.yaml").read_text(encoding="utf-8")

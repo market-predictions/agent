@@ -27,9 +27,7 @@ class AgentCarrierTests(unittest.TestCase):
 
     def test_hermes_config_uses_named_provider_native_retry_alignment_and_budget_plugin(self):
         budget = agent_carrier.Budget(max_retries=1)
-        config = agent_carrier.render_hermes_config(
-            "https://freellm.example/v1", budget
-        )
+        config = agent_carrier.render_hermes_config("https://freellm.example/v1", budget)
         self.assertIn('provider: "freellmapi"', config)
         self.assertIn("providers:\n  freellmapi:", config)
         self.assertIn('default: "auto"', config)
@@ -68,8 +66,7 @@ class AgentCarrierTests(unittest.TestCase):
 
     def test_prompt_requires_public_web_structured_result_and_names_hard_limits(self):
         prompt = agent_carrier.render_task_prompt(
-            "Research a public technical standard.",
-            agent_carrier.Budget(),
+            "Research a public technical standard.", agent_carrier.Budget()
         )
         self.assertIn("PUBLIC_NON_PERSONAL", prompt)
         self.assertIn("Use the web toolset", prompt)
@@ -172,13 +169,15 @@ class AgentCarrierTests(unittest.TestCase):
         )
         self.assertEqual(accepted["api_calls"], 2)
 
-    def test_hard_budget_state_fails_closed_and_requires_web_completion(self):
+    def test_hard_budget_state_fails_closed_and_requires_successful_web_lookup(self):
         budget = agent_carrier.Budget()
         good = {
             "plugin_ready": True,
             "model_calls": 2,
             "tool_calls": 1,
             "tool_calls_completed": 1,
+            "tool_successes": 1,
+            "tool_failures": 0,
             "retries": 0,
             "budget_exceeded": None,
             "policy_violation": None,
@@ -191,8 +190,12 @@ class AgentCarrierTests(unittest.TestCase):
             {"plugin_ready": False},
             {"budget_exceeded": "tool_calls"},
             {"policy_violation": "unauthorized_tool:terminal"},
-            {"tool_calls": 0, "tool_calls_completed": 0},
+            {"tool_calls": 0, "tool_calls_completed": 0, "tool_successes": 0},
             {"tool_calls": 2, "tool_calls_completed": 1},
+            {"tool_successes": 0, "tool_failures": 1},
+            {"tool_calls_completed": -1},
+            {"tool_successes": -1},
+            {"tool_failures": -1},
             {"retries": 2},
         ):
             state = {**good, **changed}

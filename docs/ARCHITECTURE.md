@@ -2,7 +2,7 @@
 
 **Repository:** `market-predictions/agent`  
 **Version:** 0.4 — Hermes + FreeLLMAPI bounded carrier  
-**Status:** operational carrier proven in GitHub Actions and deployed/proven on Modal  
+**Status:** operational carrier proven and Phase-1 qualification measured; external review convergence in progress  
 **Date:** 2026-09-10  
 **Canonical:** yes — this document is the single current architecture truth.
 
@@ -59,7 +59,7 @@ Consequential work fresh-reads the canonical Google Drive **Execution & Engineer
 
 ## 4. Current proven carrier
 
-The exact current implementation has been exercised end-to-end on a GitHub-hosted runner and through a live Modal remote smoke:
+The exact implementation has been exercised end-to-end on a GitHub-hosted runner and through a live Modal remote smoke:
 
 ```text
 PUBLIC_NON_PERSONAL objective
@@ -96,10 +96,12 @@ The live Modal topology is:
 
 ```text
 Modal Hermes Function
-  -> protected FreeLLMAPI Modal web service
+  -> internally resolved protected FreeLLMAPI Modal web service
   -> free provider pool
   -> CANDIDATE
 ```
+
+The worker resolves the deployed FreeLLMAPI service URL inside trusted runtime code. Callers cannot provide or redirect the credential-bearing gateway destination.
 
 Both functions scale to zero and are capped at one active container in Phase 1.
 
@@ -124,18 +126,20 @@ GitHub Actions are pinned by full commit SHA and checkout uses `persist-credenti
 The worker:
 
 1. accepts one bounded objective;
-2. creates a disposable Hermes home;
-3. configures the canonical named provider `freellmapi` with model `auto`;
-4. resolves its client credential through `FREELLMAPI_API_KEY`;
-5. adds Modal proxy headers from environment when running against the protected Modal endpoint;
-6. invokes Hermes through the top-level script one-shot path (`-z`), which is intended for programmatic final-response output;
-7. exposes only the Hermes `web` toolset;
-8. requires at least one live public web lookup by instruction;
-9. accepts only a strict JSON candidate shape;
-10. records Hermes usage where available and exits.
+2. resolves the canonical deployed FreeLLMAPI endpoint inside trusted Modal runtime code;
+3. creates a disposable Hermes home;
+4. configures the canonical named provider `freellmapi` with model `auto`;
+5. resolves its client credential through `FREELLMAPI_API_KEY`;
+6. adds Modal proxy headers from environment when running against the protected Modal endpoint;
+7. invokes Hermes through the top-level script one-shot path (`-z`), which is intended for programmatic final-response output;
+8. exposes only the Hermes `web` toolset;
+9. requires at least one **successful** live public web lookup, proven by native tool-hook telemetry rather than prompt compliance alone;
+10. accepts only a strict JSON candidate shape;
+11. records Hermes usage and bounded policy telemetry and exits.
 
 Explicitly absent:
 
+- caller-selected inference/gateway endpoint;
 - terminal/shell toolset;
 - project/filesystem mutation tools;
 - browser automation;
@@ -145,15 +149,19 @@ Explicitly absent:
 - persistent Hermes memory;
 - target-project production credentials.
 
-Current bounds:
+Current hard bounds:
 
 - one concurrent task;
 - outer wall timeout 600 seconds;
 - Hermes iteration limit 12 via `HERMES_MAX_ITERATIONS`;
-- maximum model calls checked against Hermes `api_calls` usage when reported;
+- maximum 12 actual provider/model executions enforced by Hermes `llm_execution` middleware and cross-checked against usage when available;
+- maximum 20 tool executions enforced before execution by the `pre_tool_call` hook;
+- maximum one run-global provider retry enforced at the actual provider execution boundary;
+- fixed tool allow-list of `web_search` and `web_extract`;
+- at least one successfully completed allowed web tool call before `CANDIDATE`;
 - Modal worker timeout 660 seconds.
 
-`max_tool_calls=20` remains a declared contract target, not a falsely claimed independently enforced counter: Hermes 0.21.1 does not provide a stable exact tool-call count through the selected usage file path.
+The budget plugin persists metadata-only counters/state. Missing or inconsistent plugin telemetry fails a successful-looking run closed.
 
 ---
 
@@ -163,7 +171,7 @@ Current bounds:
 
 FreeLLMAPI requires its unified `freellmapi-...` bearer. On Modal the web service additionally uses `requires_proxy_auth=True`.
 
-Hermes receives only the gateway client key, endpoint, and — on Modal — proxy key/secret. Upstream provider keys never enter the Hermes worker.
+Hermes receives only the gateway client key and Modal proxy key/secret. The endpoint itself is resolved internally from the deployed `freellmapi` Modal Function before credentials are attached. Upstream provider keys never enter the Hermes worker.
 
 ### Stable headless key
 
@@ -215,9 +223,11 @@ Phase 2 may add `PARTIAL` and `RESULT_READY` after independent evidence verifica
 
 The expensive live model proof runs on pull requests and on merged `main`, not twice for both branch push and PR.
 
-`.github/workflows/deploy-modal.yml` is the only Modal deployment path. It is explicit-dispatch only, authenticates with `MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET`, idempotently bootstraps the named runtime Secrets, deploys `modal_app.py`, and optionally executes the remote smoke. Provider/runtime credentials remain in Modal Secrets, not GitHub source or Hermes.
+`.github/workflows/deploy-modal.yml` is the only Modal deployment path. It is explicit-dispatch in its steady state, authenticates with `MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET`, idempotently bootstraps the named runtime Secrets, deploys `modal_app.py`, and can execute the remote smoke or the fixed qualification sample. Provider/runtime credentials remain in Modal Secrets, not GitHub source or Hermes.
 
-The first live promotion and remote smoke have succeeded. A temporary branch-push trigger used only to prove the initial promotion was removed immediately afterward, so ordinary source pushes cannot spend Modal compute by deploying.
+The first live promotion and remote smoke have succeeded. One-time branch triggers used only when a candidate workflow is not yet present on `main` are removed immediately after the bounded proof; no second deployment workflow or parallel deployment architecture is retained.
+
+The fixed 20-run qualification and its human source review are recorded in `qualification/PHASE1_QUALIFICATION_REVIEW.md`. External exact-candidate review remains a separate acceptance gate and any review finding invalidates a clean-review claim until repaired and freshly reviewed.
 
 ---
 
@@ -229,10 +239,11 @@ Do not add yet:
 - direct-provider integration;
 - worker fan-out/recursive delegation;
 - framework database or queue;
-- persistent Hermes gateway/memory;
+- persistent Hermes gateway/memory inside the bounded worker;
 - FreeLLMAPI persistence unless measured necessary;
 - Sandbox unless executable tooling is required;
-- project publisher or production writes;
-- mobile/interactive service before bounded-carrier qualification.
+- project publisher or production writes.
+
+A separate authenticated interactive Hermes service may proceed only under the current governed Mission sequence and must remain isolated from bounded-worker, Control and project-business authority.
 
 The next architecture changes are driven by measured need, not anticipated complexity.

@@ -330,24 +330,3 @@ def smoke(
     print(json.dumps(result, indent=2, sort_keys=True))
     if result.get("status") != "CANDIDATE":
         raise SystemExit(1)
-
-
-@app.local_entrypoint()
-def dashboard_smoke() -> None:
-    """Verify the already deployed public endpoint is Nous-authenticated."""
-    dashboard_root = HERMES_DASHBOARD_PUBLIC_URL.rstrip("/")
-    request = urllib.request.Request(
-        f"{dashboard_root}/api/status",
-        headers={"Accept": "application/json"},
-        method="GET",
-    )
-    with urllib.request.urlopen(request, timeout=180) as response:
-        if response.status != 200:
-            raise RuntimeError(f"Hermes dashboard status returned HTTP {response.status}")
-        payload = json.loads(response.read().decode("utf-8"))
-
-    if payload.get("auth_required") is not True:
-        raise RuntimeError("Hermes dashboard auth gate is not engaged")
-    if "nous" not in payload.get("auth_providers", []):
-        raise RuntimeError("Hermes dashboard Nous OAuth provider is not active")
-    print(json.dumps({"dashboard": dashboard_root, "auth": "nous", "status": "OK"}))

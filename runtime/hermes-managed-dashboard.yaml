@@ -18,13 +18,12 @@ providers:
       Modal-Key: "${MODAL_PROXY_KEY}"
       Modal-Secret: "${MODAL_PROXY_SECRET}"
 
-# No direct-provider fallback and no autonomous shell/browser/delegation in the
-# first interactive layer. Profiles, sessions, memory and skills may remain
-# user-managed, but their effective inference/tool authority cannot override
-# this managed overlay.
+# No direct-provider fallback in the first interactive layer. Interactive tool
+# authority is pinned separately with Hermes' native HERMES_TUI_TOOLSETS=web
+# operator override in modal_app.py. That override resolves before coding
+# posture and GUI surface additions, so user/profile state cannot re-enable
+# terminal, file, browser or delegation tools.
 fallback_providers: []
-toolsets:
-  - web
 max_concurrent_sessions: 1
 
 database:

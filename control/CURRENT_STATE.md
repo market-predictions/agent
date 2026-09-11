@@ -1,6 +1,6 @@
 # Agent Framework — Current Project Facts
 
-**Observed date:** 2026-09-10  
+**Observed date:** 2026-09-11  
 **Repository:** `market-predictions/agent`  
 **Status type:** project-local implementation snapshot only  
 **Control runtime/status authority:** **no**
@@ -10,8 +10,12 @@
 ## Current implementation state
 
 ```text
-architecture_version=v0.4
-implementation_state=PHASE1_CARRIER_QUALIFIED_EXTERNAL_REVIEW_PENDING
+architecture_version=v0.5
+bounded_carrier_state=PHASE1_QUALIFIED_EXTERNAL_REVIEW_PENDING
+interactive_dashboard_state=DEPLOYED_AUTHENTICATED_BROWSER_CHAT_PROVEN
+interactive_dashboard_persistence_restart_proven=false
+interactive_dashboard_websocket_browser_proven=true
+interactive_dashboard_web_only_authority_pinned=true
 github_source_of_truth=true
 real_hermes_freellm_model_web_chain_proven=true
 modal_runtime_code_present=true
@@ -28,18 +32,17 @@ hermes_runtime_pinned=true
 freellmapi_runtime_pinned=true
 trusted_verifier_deployed=false
 worker_fanout_deployed=false
-mobile_interactive_hermes_deployed=false
+native_mobile_client_deployed=false
 framework_database_present=false
 framework_queue_present=false
 production_project_write_authority=false
 control_management_status=CONTROL_MANAGED
-bootstrap_candidate_pr=1
 control_baseline=FROZEN
 ```
 
-## Proven and qualified Phase-1 carrier
+## Proven bounded Phase-1 carrier
 
-PR #1 contains and has executed the actual bounded runtime chain:
+The bounded runtime executes:
 
 ```text
 pinned Hermes 0.21.1 / exact commit
@@ -51,46 +54,65 @@ pinned Hermes 0.21.1 / exact commit
   -> strict CANDIDATE
 ```
 
-A clean GitHub-hosted proof installs Hermes from the exact source commit, pulls/starts the exact FreeLLMAPI image, verifies gateway authentication, performs a direct real `model=auto` inference with `X-Routed-Via`, and then completes the actual Hermes web-tool carrier.
+A clean GitHub-hosted proof installs exact source, pulls/starts exact FreeLLMAPI, verifies gateway auth, performs direct real `model=auto` inference with `X-Routed-Via`, then completes the actual Hermes web-tool carrier.
 
-The same pinned carrier is deployed on Modal. The live promotion authenticated from GitHub Actions, created the required runtime credential boundary, deployed the protected FreeLLMAPI service plus bounded Hermes Function, and completed the remote smoke with `CANDIDATE`.
+The fixed 20-run qualification produced 18 strict source-bearing candidates. Manual source readback confirmed all 18 candidate claims, yielding 90% human-usable output against the initial approximately 70% gate. Both non-candidate runs remained fail-closed.
 
-The fixed Phase-1 qualification then executed 20 sequential `PUBLIC_NON_PERSONAL` research tasks through the live Modal carrier. Eighteen returned strict source-bearing candidates. Manual source readback confirmed all 18 candidate claims, producing a 90% human-usable run rate against the Mission's initial approximately 70% gate. Both non-candidate runs were strict-schema failures and remained fail-closed. Detailed evidence identity and review are in `qualification/PHASE1_QUALIFICATION_REVIEW.md`.
+The bounded output authority remains `CANDIDATE`. Qualification does not create `RESULT_READY`.
 
-The current output authority remains `CANDIDATE`. Qualification does not create `RESULT_READY`; that requires the separate trusted verifier.
+## Interactive dashboard facts
+
+PR #2 adds a separate native Hermes Web Dashboard/TUI without widening bounded-worker authority.
+
+Verified live facts:
+
+- public Modal dashboard endpoint deployed;
+- native Nous Portal OAuth completes in a real browser;
+- anonymous session API access fails closed;
+- browser-facing WebSocket/chat remains connected after the dashboard-only compression compatibility fix;
+- a real interactive prompt completed Hermes web search and returned an answer;
+- dashboard runtime is hard-pinned with `HERMES_TUI_TOOLSETS=web`;
+- dashboard startup fails closed if that operator pin or the FreeLLMAPI provider boundary is missing;
+- terminal, file mutation, browser automation, code execution and delegation are not part of the intended interactive model authority;
+- one persistent Modal Volume is present for interactive profiles/sessions/state only;
+- restart/scale-down persistence has not yet been intentionally proven.
+
+The dashboard uses one active container maximum. Modal accepts multiple simultaneous HTTP/WebSocket inputs so the native UI transport can function, while Hermes itself remains limited to one concurrent interactive session.
+
+The dashboard's exact Hermes checkout gets one narrow source-anchor-checked Uvicorn setting change (`ws_per_message_deflate=False`) because real production evidence showed protocol close code `1002` through the Modal intermediary. The bounded worker remains unpatched exact upstream Hermes.
 
 ## Security/capability facts
 
 - Hermes receives no upstream provider API keys.
 - Hermes receives no target-project production write credentials.
-- The generic inference lane is `PUBLIC_NON_PERSONAL` only.
+- The generic bounded inference lane is `PUBLIC_NON_PERSONAL` only.
 - No direct-provider bypass or second agent runtime exists.
-- Hermes exposes only the `web` toolset in the bounded worker.
-- Hard model-call, tool-call, retry, wall-time and concurrency limits are enforced fail-closed.
-- No framework DB, queue, publisher, fan-out, persistent Hermes memory, Sandbox, or paid fallback exists in PR #1.
-- The zero-key model bootstrap uses current upstream keyless Kilo and OVH adapters.
-- Modal topology caps FreeLLMAPI and Hermes at one active container each and scales them to zero.
+- Bounded worker tool authority is only `web_search` / `web_extract`.
+- Interactive dashboard model tool authority is hard-pinned to the same web-only set through Hermes' native TUI operator override.
+- Hard model-call, tool-call, retry, wall-time and concurrency limits are enforced fail-closed in the bounded worker.
+- No framework DB, queue, publisher, fan-out, Sandbox or paid fallback exists.
 - GitHub holds only the Modal deployment token pair as encrypted Actions Secrets; generated runtime credentials remain in Modal Secrets.
-- The runtime bootstrap is idempotent and fails closed on partial named-Secret state.
+- Control remains frozen; no second Agent-side scheduler, queue, poller or semantic Control actor has been introduced.
 
 ## Modal deployment boundary
 
-The canonical deployment path is `.github/workflows/deploy-modal.yml` and is explicit-dispatch only.
+The canonical deployment path is `.github/workflows/deploy-modal.yml` and is explicit-dispatch only in steady state.
 
-Current verified chain:
+Current deployed topology:
 
 ```text
 GitHub Actions repository Secrets
-  -> Modal account authentication
+  -> Modal authentication
   -> idempotent runtime credential bootstrap
   -> modal deploy modal_app.py
-  -> protected FreeLLMAPI web service
-  -> bounded Hermes Function
-  -> optional remote smoke / qualification
-  -> CANDIDATE evidence
+       -> protected FreeLLMAPI web service
+       -> bounded Hermes Function
+       -> authenticated Hermes dashboard web function
+  -> dashboard auth smoke
+  -> optional bounded smoke / qualification
 ```
 
-The one-time qualification trigger and temporary second deployment workflow were removed after the first evidence run. The qualification harness remains reusable only as an explicit option on the canonical deployment workflow. Ordinary source pushes therefore do not automatically deploy or spend Modal compute.
+Temporary path-limited triggers used only for a deliberate promotion are removed immediately after use. There is no second deployment workflow.
 
 ## Verification facts
 
@@ -99,31 +121,17 @@ Candidate CI has two layers:
 1. deterministic compile/tests/topology/contract checks;
 2. exact upstream integration with a real free model and real Hermes web-tool execution.
 
-The live provider proof runs once per pull-request candidate and once per merge to `main` to avoid duplicate free-provider quota use. Modal promotion is separately explicit.
+The fixed qualification evidence remains historically bound to its measured runtime candidate; later interactive-dashboard work does not rewrite that evidence or relax the bounded worker.
 
-The 20-run qualification evidence is bound to runtime candidate `a74871525458e47f69fa2c01ba6d0bdfc4a01202`; later PR #1 cleanup changes only evidence/documentation/workflow surfaces and does not relax or replace the measured worker runtime. Exact current PR head/check status must always be read live from PR #1.
+Remaining bounded `AGENT-R1-GAP-01` gate: required fresh external exact-candidate review.
 
-The remaining `AGENT-R1-GAP-01` acceptance gate is a fresh external exact-candidate review after final exact-head CI.
+Remaining interactive-dashboard proof: intentional restart/scale-down persistence check, followed by fresh exact-candidate external review once the branch is final.
 
 ## Control governance state
 
-`AGENT_FRAMEWORK` is canonically onboarded under Control V4:
+`AGENT_FRAMEWORK` remains canonically onboarded under Control V4. This snapshot does not override the canonical Mission or live Control status.
 
-```text
-control_adoption_pr=252
-control_adoption_merge=a6f627944d1e96d8f1a3111e62ccb8ef5cd36635
-mission=control/missions/AGENT_FRAMEWORK.mission.json
-mission_revision=2026-09-09-r1
-repository_authority=control/repository-authority/market-predictions__agent.json
-```
-
-Control remains deliberately frozen. The known candidate-less BUILD / existing-candidate binding limitation is not an Agent runtime blocker and is not worked around with another scheduler, queue, poller, or semantic actor.
-
-A separate proposed Mission revision may change later gap sequencing; until merged into Control main it is not canonical authority and is intentionally not reflected here as current Control state.
-
-## Scope after Phase-1 acceptance
-
-The first carrier is qualified but not yet externally accepted. Later governed work may add interactive Hermes, independent evidence verification, optional parallelism only if measured useful, and bounded caller/project integration. Their exact sequence comes from the current canonical Mission, not from this snapshot.
+Control remains deliberately frozen. The known candidate-less BUILD / existing-candidate binding limitation is not worked around with another scheduler, queue, poller or semantic actor.
 
 ## Cleanup rule
 

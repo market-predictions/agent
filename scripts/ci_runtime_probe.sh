@@ -127,17 +127,24 @@ usage = result.get('usage') or {}
 # This job proves the live carrier path and fail-closed policy boundary. Output
 # quality is measured separately by the fixed 20-run qualification sample; a
 # stochastic free model must not turn CI red merely because its final JSON is
-# malformed when the carrier correctly rejects that output.
+# malformed or because the hard model-call ceiling is correctly reached.
 assert result.get('exit_code') == 0, result
 assert telemetry.get('plugin_ready') is True, result
 assert telemetry.get('model_calls', 0) > 0, result
 assert telemetry.get('tool_calls_completed', 0) > 0, result
 assert telemetry.get('tool_failures', 0) == 0, result
-assert telemetry.get('budget_exceeded') is None, result
 assert telemetry.get('policy_violation') is None, result
 assert usage.get('completed') is True, result
 
-if result.get('status') == 'CANDIDATE':
+budget_exceeded = telemetry.get('budget_exceeded')
+if budget_exceeded is not None:
+    assert budget_exceeded == 'model_calls', result
+    assert telemetry.get('model_calls') == result['budget']['max_model_calls'], result
+    assert result.get('status') == 'FAILED', result
+    assert result.get('candidate_output') == '{"agent_budget_exceeded":"model_calls"}', result
+    assert result.get('error') == 'Hermes result must contain exactly summary and claims', result
+    print('Hermes -> FreeLLMAPI -> model -> web: OK (hard model-call ceiling enforced)')
+elif result.get('status') == 'CANDIDATE':
     assert result['result']['claims'], result
     print('Hermes -> FreeLLMAPI -> model -> web: OK (CANDIDATE)')
 elif result.get('status') == 'FAILED':

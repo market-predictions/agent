@@ -1,6 +1,6 @@
 # Interactive Hermes Dashboard
 
-**Status:** browser Nous OAuth login proven; real chat and persistence verification pending  
+**Status:** browser Nous OAuth proven; Modal WebSocket-concurrency repair deployed; real chat re-test and persistence verification pending  
 **Runtime:** native Hermes `0.21.1` Web Dashboard on Modal  
 **Endpoint:** `https://market-predictions--agent-carrier-dashboard.modal.run`
 
@@ -79,6 +79,25 @@ A subsequent real authenticated browser round trip succeeded: Nous Portal return
 
 No Portal bearer token or account credential belongs in GitHub, Modal configuration, or chat.
 
+## Dashboard WebSocket concurrency
+
+The first authenticated `/chat` attempt repeatedly closed with browser WebSocket code `1006`. Production logs proved that authentication and WebSocket upgrades were already succeeding: `/api/ws`, `/api/events`, and `/api/pty` all reached `101 Switching Protocols`. The failure occurred only when the PTY channel tried to deliver its initial terminal snapshot after other long-lived dashboard inputs had occupied the single Modal container.
+
+Root cause was the deployment topology: Modal treats every WebSocket connection as a function input. The dashboard was capped at one container but had no per-container input concurrency, while native Hermes requires several simultaneous long-lived WebSockets plus ordinary HTTP API requests. Requests therefore queued behind long-lived sockets and the browser's reconnect logic eventually closed the PTY transport.
+
+The production repair is intentionally small:
+
+```text
+@app.function(... max_containers=1 ...)
+@modal.concurrent(max_inputs=20)
+@modal.web_server(...)
+def dashboard(): ...
+```
+
+This retains one dashboard container and one persistent state writer while allowing the native Hermes HTTP/WebSocket surface to multiplex up to 20 in-flight inputs inside that container. The bounded headless worker remains separately pinned to `@modal.concurrent(max_inputs=1)`.
+
+A deterministic contract test protects both sides of that boundary. The repaired runtime was deployed by canonical run `34647644628`; production auth-gate smoke and the independent bounded-worker Hermes -> FreeLLMAPI smoke both passed after deployment. Real authenticated browser chat remains the required user-facing confirmation.
+
 ## Persistence
 
 Interactive `HERMES_HOME` is mounted from the single named Modal Volume `agent-hermes-home` at `/data/hermes`.
@@ -87,7 +106,7 @@ There is only one dashboard container. A small background commit loop persists V
 
 ## Deployment
 
-The dashboard is part of the existing `agent-carrier` Modal App. It does not get a second deployment workflow. The canonical deployment remains explicit-dispatch only:
+The dashboard is part of the existing `agent-carrier` Modal App. It does not get a second deployment workflow. The canonical deployment is explicit-dispatch only:
 
 ```text
 .github/workflows/deploy-modal.yml
@@ -109,7 +128,7 @@ The pinned Hermes release may protect `/api/status` differently from newer upstr
 
 ## Remaining user-facing verification
 
-1. a real browser `/chat` round trip through FreeLLMAPI;
+1. repeat the real browser `/chat` round trip through FreeLLMAPI after the concurrency repair;
 2. persistence across dashboard restart/scale-down;
 3. final exact-head CI and fresh external exact-candidate review.
 

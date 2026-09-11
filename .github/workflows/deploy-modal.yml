@@ -58,11 +58,14 @@ jobs:
         run: modal deploy modal_app.py
       - name: Dashboard production auth-gate smoke
         run: python -m scripts.dashboard_smoke
+      - name: Capture dashboard failure logs
+        if: ${{ failure() }}
+        run: modal app logs agent-carrier --since 15m --tail 300 --timestamps
       - name: End-to-end bounded-worker smoke
-        if: ${{ inputs.run_smoke }}
+        if: ${{ inputs.run_smoke && success() }}
         run: modal run modal_app.py::smoke
       - name: Fixed 20-task Phase-1 qualification
-        if: ${{ inputs.run_qualification }}
+        if: ${{ inputs.run_qualification && success() }}
         run: python -m scripts.phase1_qualification
       - name: Preserve qualification evidence
         if: ${{ always() && inputs.run_qualification }}

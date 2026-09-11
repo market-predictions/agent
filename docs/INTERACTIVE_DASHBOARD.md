@@ -1,6 +1,6 @@
 # Interactive Hermes Dashboard
 
-**Status:** implementation candidate; public OAuth registration completed; deployment verification in progress  
+**Status:** production auth gate proven; browser OAuth/chat/persistence verification pending  
 **Runtime:** native Hermes `0.21.1` Web Dashboard on Modal  
 **Endpoint:** `https://market-predictions--agent-carrier-dashboard.modal.run`
 
@@ -89,9 +89,11 @@ The production smoke proves:
 3. anonymous access to `/api/sessions` is rejected fail-closed (401 or a same-origin redirect to `/login`);
 4. redirects are not followed by the probe, so an OAuth browser round-trip cannot masquerade as a health check.
 
+Production proof on 2026-09-11 used deployed runtime candidate `9e64d603978fff3c51e17882d6e5c36716629793`. The production smoke returned `auth_provider=nous`, `anonymous_sessions_status=401` and `status=OK` against the public endpoint. Exact-head carrier and upstream-runtime CI also passed on that runtime candidate.
+
 The pinned Hermes release may protect `/api/status` differently from newer upstream revisions, so `/api/status` is not used as the auth-gate oracle. Provider bootstrap plus rejection of a genuinely gated API route tests the security property directly.
 
-The final user-facing verification is browser login followed by a real `/chat` session through FreeLLMAPI and a persistence check across a container restart/scale-down.
+The remaining user-facing verification is browser login followed by a real `/chat` session through FreeLLMAPI and a persistence check across a container restart/scale-down.
 
 ## Domain
 

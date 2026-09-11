@@ -1,6 +1,13 @@
 name: Deploy Agent to Modal
 
 on:
+  # Temporary one-shot promotion hook for the dashboard concurrency repair.
+  # Remove immediately after the exact candidate is deployed and verified.
+  push:
+    branches:
+      - feature/hermes-dashboard
+    paths:
+      - modal_app.py
   workflow_dispatch:
     inputs:
       run_smoke:
@@ -55,7 +62,7 @@ jobs:
         if: ${{ failure() }}
         run: modal app logs agent-carrier --since 15m --tail 300 --timestamps
       - name: End-to-end bounded-worker smoke
-        if: ${{ inputs.run_smoke && success() }}
+        if: ${{ (github.event_name == 'push' || inputs.run_smoke) && success() }}
         run: modal run modal_app.py::smoke
       - name: Fixed 20-task Phase-1 qualification
         if: ${{ inputs.run_qualification && success() }}

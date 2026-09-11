@@ -277,6 +277,7 @@ def run_agent(task_id: str, objective: str) -> dict:
     min_containers=0,
     scaledown_window=300,
 )
+@modal.concurrent(max_inputs=20)
 @modal.web_server(HERMES_DASHBOARD_PORT, startup_timeout=180)
 def dashboard() -> None:
     """Serve native Hermes Web Dashboard with persistent interactive state."""

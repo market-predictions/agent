@@ -90,14 +90,21 @@ hermes_image = (
 
 # Native Hermes dashboard/TUI, built from the same exact upstream commit. The
 # OAuth client id is ordinary public configuration. Protected gateway
-# credentials remain in the existing agent-hermes Secret.
+# credentials remain in the existing agent-hermes Secret. Only this dashboard
+# image gets the Modal-ingress WebSocket compression compatibility patch.
 hermes_dashboard_image = (
     modal.Image.from_registry(HERMES_DASHBOARD_NODE_IMAGE, add_python="3.12")
     .apt_install("git", "ripgrep", "build-essential")
+    .add_local_file(
+        "runtime/patch_hermes_dashboard.py",
+        "/tmp/patch_hermes_dashboard.py",
+        copy=True,
+    )
     .run_commands(
         f"git clone --filter=blob:none {HERMES_REPOSITORY} {HERMES_SOURCE_DIR}",
         f"git -C {HERMES_SOURCE_DIR} checkout --detach {HERMES_COMMIT}",
         f'test "$(git -C {HERMES_SOURCE_DIR} rev-parse HEAD)" = "{HERMES_COMMIT}"',
+        f"python /tmp/patch_hermes_dashboard.py {HERMES_SOURCE_DIR}",
         f"python -m pip install --disable-pip-version-check -e {HERMES_SOURCE_DIR}",
         f"cd {HERMES_SOURCE_DIR} && npm install --prefer-offline --no-audit --fetch-retries=5",
         f"cd {HERMES_SOURCE_DIR}/web && npm run build",

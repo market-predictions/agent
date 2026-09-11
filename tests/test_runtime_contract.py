@@ -73,7 +73,7 @@ class RuntimeContractTests(unittest.TestCase):
         self.assertIn("HERMES_DASHBOARD_OAUTH_CLIENT_ID", source)
         self.assertIn("HERMES_DASHBOARD_PUBLIC_URL", source)
         self.assertIn("_start_volume_committer()", source)
-        self.assertIn("def dashboard_smoke()", source)
+        self.assertNotIn("def dashboard_smoke()", source)
         self.assertNotIn("MODAL_HERMES_DASHBOARD_AUTH_SECRET", source)
         self.assertNotIn("hermes_dashboard_auth_secret", source)
 
@@ -113,6 +113,16 @@ class RuntimeContractTests(unittest.TestCase):
         self.assertIn("HERMES_DASHBOARD_OAUTH_CLIENT_ID", versions)
         self.assertIn("HERMES_DASHBOARD_PUBLIC_URL", versions)
         self.assertNotIn("MODAL_HERMES_DASHBOARD_AUTH_SECRET", versions)
+
+    def test_dashboard_smoke_targets_deployed_endpoint_without_modal_dev_context(self):
+        smoke = (ROOT / "scripts/dashboard_smoke.py").read_text(encoding="utf-8")
+        workflow = (ROOT / ".github/workflows/deploy-modal.yml").read_text(encoding="utf-8")
+        self.assertIn("HERMES_DASHBOARD_PUBLIC_URL", smoke)
+        self.assertIn('"/api/auth/providers"', smoke)
+        self.assertIn('"/api/sessions"', smoke)
+        self.assertIn("_NoRedirect", smoke)
+        self.assertIn("python -m scripts.dashboard_smoke", workflow)
+        self.assertNotIn("modal_app.py::dashboard_smoke", workflow)
 
 
 if __name__ == "__main__":

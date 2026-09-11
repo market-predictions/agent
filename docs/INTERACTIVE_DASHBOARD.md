@@ -1,6 +1,6 @@
 # Interactive Hermes Dashboard
 
-**Status:** corrected Nous client id deployed; local production auth boundary and bounded-worker smoke green; real browser OAuth/chat/persistence verification pending  
+**Status:** browser Nous OAuth login proven; real chat and persistence verification pending  
 **Runtime:** native Hermes `0.21.1` Web Dashboard on Modal  
 **Endpoint:** `https://market-predictions--agent-carrier-dashboard.modal.run`
 
@@ -63,11 +63,11 @@ The intended self-hosted Portal registration is:
 
 `HERMES_DASHBOARD_OAUTH_CLIENT_ID` is a public OAuth client identifier, not a credential, so the selected id is versioned with the public URL in `runtime_versions.py`. Real FreeLLMAPI and Modal proxy credentials remain in the existing protected `agent-hermes` Secret.
 
-### OAuth registration correction
+### OAuth registration correction and browser proof
 
 The first real browser authorization attempt reached Nous Portal but returned `agent_not_found`. The root cause was a one-character transcription error in the configured client id: a lowercase `l` had been recorded as digit `1`.
 
-The operator-supplied corrected client id is now the repository source of truth and was deployed to the production Modal image on 2026-09-11. Deployment run `34644978301` proved:
+The corrected client id was deployed to the production Modal image on 2026-09-11. Deployment run `34644978301` proved:
 
 - the live image contains the corrected client id;
 - Hermes exposes the native `nous` auth provider;
@@ -75,7 +75,7 @@ The operator-supplied corrected client id is now the repository source of truth 
 - anonymous `/api/sessions` access is rejected with HTTP 401;
 - the bounded Hermes -> FreeLLMAPI -> model -> web smoke returns a strict `CANDIDATE`.
 
-This proves the local production boundary and exact deployment configuration. It does not yet prove the final Portal authorization round trip because that requires the user's authenticated Nous browser session.
+A subsequent real authenticated browser round trip succeeded: Nous Portal returned the user to the production Hermes dashboard and the dashboard displayed the authenticated identity as `via nous`. This closes the browser OAuth-login acceptance step.
 
 No Portal bearer token or account credential belongs in GitHub, Modal configuration, or chat.
 
@@ -103,16 +103,15 @@ The production smoke proves only properties that the deployed Hermes service can
 3. `/auth/login?provider=nous` constructs an HTTPS authorization request to `portal.nousresearch.com` with the configured client id and the exact public callback;
 4. anonymous access to `/api/sessions` is rejected fail-closed (401 or a same-origin redirect to `/login`).
 
-It explicitly reports Portal provisioning as `UNVERIFIED`. A green smoke must never be interpreted as proof that Nous Portal completed an authenticated browser authorization.
+The actual browser OAuth round trip is separately proven by the successful authenticated dashboard session described above.
 
 The pinned Hermes release may protect `/api/status` differently from newer upstream revisions, so `/api/status` is not used as the auth-gate oracle.
 
 ## Remaining user-facing verification
 
-1. browser Nous OAuth login with the corrected client id;
-2. a real `/chat` round trip through FreeLLMAPI;
-3. persistence across dashboard restart/scale-down;
-4. final exact-head CI and fresh external exact-candidate review.
+1. a real browser `/chat` round trip through FreeLLMAPI;
+2. persistence across dashboard restart/scale-down;
+3. final exact-head CI and fresh external exact-candidate review.
 
 ## Domain
 

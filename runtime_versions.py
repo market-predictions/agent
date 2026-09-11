@@ -22,7 +22,7 @@ HERMES_DASHBOARD_PUBLIC_URL = (
 # OAuth client IDs are public identifiers, not credentials. Keeping this value
 # in GitHub avoids an unnecessary third Modal Secret while real credentials
 # remain confined to the existing protected runtime Secrets.
-HERMES_DASHBOARD_OAUTH_CLIENT_ID = "agent:cmtvyr0070021gm0azzjkg522"
+HERMES_DASHBOARD_OAUTH_CLIENT_ID = "agent:cmtvyr007002lgm0azzjkg522"
 
 FREELLMAPI_VERSION = "0.9.8"
 FREELLMAPI_IMAGE = (

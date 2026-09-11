@@ -1,8 +1,8 @@
-"""Modal runtime for the first operational Agent carrier.
+"""Modal runtime for the bounded Agent carrier and separate interactive Hermes UI.
 
-One protected FreeLLMAPI web service holds upstream provider credentials. One
-bounded Hermes Function receives only the gateway client credential and Modal
-proxy credential. Control is intentionally not involved in this runtime path.
+The bounded worker resolves the protected FreeLLMAPI endpoint inside trusted
+runtime code. The interactive dashboard shares that inference boundary but has
+separate persistent user-session state and no Control/project authority.
 """
 
 from __future__ import annotations
@@ -18,10 +18,16 @@ from runtime_versions import (
     FREELLMAPI_IMAGE,
     FREELLMAPI_PORT,
     HERMES_COMMIT,
+    HERMES_DASHBOARD_HOME,
+    HERMES_DASHBOARD_NODE_IMAGE,
+    HERMES_DASHBOARD_OAUTH_CLIENT_ID,
+    HERMES_DASHBOARD_PORT,
+    HERMES_DASHBOARD_PUBLIC_URL,
     HERMES_REPOSITORY,
     HERMES_SOURCE_DIR,
     MODAL_APP_NAME,
     MODAL_FREELLMAPI_SECRET,
+    MODAL_HERMES_DASHBOARD_VOLUME,
     MODAL_HERMES_SECRET,
 )
 
@@ -39,6 +45,15 @@ freellmapi_client_secret = modal.Secret.from_name(
         "MODAL_PROXY_KEY",
         "MODAL_PROXY_SECRET",
     ],
+)
+
+# One writer only. This stores interactive profiles/sessions/memory; it is not
+# Control state, a framework queue or target-project business truth. Modal
+# Volume mounts already use native background commits, so no second commit loop
+# is maintained inside the dashboard process.
+hermes_dashboard_volume = modal.Volume.from_name(
+    MODAL_HERMES_DASHBOARD_VOLUME,
+    create_if_missing=True,
 )
 
 freellmapi_image = (
@@ -71,6 +86,53 @@ hermes_image = (
         "parallel-web==0.4.2",
     )
     .add_local_python_source("agent_carrier", "agent_budget_plugin", "runtime_versions")
+)
+
+# Native Hermes dashboard/TUI, built from the same exact upstream commit. The
+# OAuth client id is ordinary public configuration. Protected gateway
+# credentials remain in the existing agent-hermes Secret. Only this dashboard
+# image gets the Modal-ingress WebSocket compression compatibility patch.
+hermes_dashboard_image = (
+    modal.Image.from_registry(HERMES_DASHBOARD_NODE_IMAGE, add_python="3.12")
+    .apt_install("git", "ripgrep", "build-essential")
+    .add_local_file(
+        "runtime/patch_hermes_dashboard.py",
+        "/tmp/patch_hermes_dashboard.py",
+        copy=True,
+    )
+    .run_commands(
+        f"git clone --filter=blob:none {HERMES_REPOSITORY} {HERMES_SOURCE_DIR}",
+        f"git -C {HERMES_SOURCE_DIR} checkout --detach {HERMES_COMMIT}",
+        f'test "$(git -C {HERMES_SOURCE_DIR} rev-parse HEAD)" = "{HERMES_COMMIT}"',
+        f"python /tmp/patch_hermes_dashboard.py {HERMES_SOURCE_DIR}",
+        f"python -m pip install --disable-pip-version-check -e {HERMES_SOURCE_DIR}",
+        f"cd {HERMES_SOURCE_DIR} && npm install --prefer-offline --no-audit --fetch-retries=5",
+        f"cd {HERMES_SOURCE_DIR}/web && npm run build",
+        f"cd {HERMES_SOURCE_DIR}/ui-tui && npm run build",
+        "mkdir -p /etc/hermes",
+    )
+    .pip_install(
+        "exa-py==2.10.2",
+        "firecrawl-py==4.17.0",
+        "parallel-web==0.4.2",
+    )
+    .env(
+        {
+            "HERMES_HOME": HERMES_DASHBOARD_HOME,
+            "HERMES_DASHBOARD_OAUTH_CLIENT_ID": HERMES_DASHBOARD_OAUTH_CLIENT_ID,
+            "HERMES_DASHBOARD_PUBLIC_URL": HERMES_DASHBOARD_PUBLIC_URL,
+            # Native Hermes operator override. It resolves before coding posture
+            # and GUI surface additions, so interactive authority stays web-only.
+            "HERMES_TUI_TOOLSETS": "web",
+        }
+    )
+    # modal_app imports runtime_versions when Modal hydrates the web function;
+    # every function image must therefore carry that module explicitly.
+    .add_local_python_source("runtime_versions")
+    .add_local_file(
+        "runtime/hermes-managed-dashboard.yaml",
+        "/etc/hermes/config.yaml",
+    )
 )
 
 
@@ -106,7 +168,7 @@ def _bootstrap_freellmapi_unified_key() -> None:
     requires_proxy_auth=True,
 )
 def freellmapi() -> None:
-    """Start the pinned FreeLLMAPI server behind Modal proxy authentication."""
+    """Start pinned FreeLLMAPI behind Modal proxy authentication."""
     _bootstrap_freellmapi_unified_key()
     subprocess.Popen(
         [
@@ -138,6 +200,47 @@ def _probe_gateway(gateway_root: str) -> None:
             raise RuntimeError(f"FreeLLMAPI health probe returned HTTP {response.status}")
 
 
+def _validate_dashboard_effective_policy(gateway_root: str) -> None:
+    """Fail closed if Hermes' expanded managed overlay is not effective."""
+    from hermes_cli.config import load_config
+
+    config = load_config()
+    model = config.get("model") or {}
+    provider = (config.get("providers") or {}).get("freellmapi") or {}
+    security = config.get("security") or {}
+    auxiliary = config.get("auxiliary") or {}
+    title_generation = auxiliary.get("title_generation") or {}
+    agent = config.get("agent") or {}
+    # load_config() expands ${VAR} references. Compare the effective values to
+    # the process secrets without ever logging those values.
+    expected_headers = {
+        "Modal-Key": os.environ["MODAL_PROXY_KEY"],
+        "Modal-Secret": os.environ["MODAL_PROXY_SECRET"],
+    }
+    checks = {
+        "model.default": model.get("default") == "auto",
+        "model.provider": model.get("provider") == "freellmapi",
+        "provider.base_url": provider.get("base_url") == f"{gateway_root.rstrip('/')}/v1",
+        "provider.key_env": provider.get("key_env") == "FREELLMAPI_API_KEY",
+        "provider.api_mode": provider.get("api_mode") == "chat_completions",
+        "provider.default_model": provider.get("default_model") == "auto",
+        "provider.extra_headers": provider.get("extra_headers") == expected_headers,
+        "fallback_providers": config.get("fallback_providers") == [],
+        "tui_toolsets": os.environ.get("HERMES_TUI_TOOLSETS") == "web",
+        "max_concurrent_sessions": config.get("max_concurrent_sessions") == 1,
+        "security.allow_lazy_installs": security.get("allow_lazy_installs") is False,
+        "auxiliary.title_generation.enabled": title_generation.get("enabled") is False,
+        "agent.coding_context": agent.get("coding_context") == "off",
+    }
+    failed = [name for name, passed in checks.items() if not passed]
+    if failed:
+        # Field names are safe diagnostics; values may contain secrets and are
+        # intentionally never emitted.
+        raise RuntimeError(
+            "Hermes managed dashboard policy is not effective: " + ", ".join(failed)
+        )
+
+
 @app.function(
     image=hermes_image,
     secrets=[freellmapi_client_secret],
@@ -150,12 +253,9 @@ def _probe_gateway(gateway_root: str) -> None:
 )
 @modal.concurrent(max_inputs=1)
 def run_agent(task_id: str, objective: str) -> dict:
-    """Run one bounded headless Hermes task through the deployed FreeLLMAPI service."""
+    """Run one bounded headless Hermes task through protected FreeLLMAPI."""
     import agent_carrier
 
-    # Resolve the protected gateway inside trusted runtime code. Callers never
-    # supply a credential-bearing destination, so they cannot redirect the
-    # bearer/proxy credentials or bypass the canonical FreeLLMAPI service.
     gateway_root = freellmapi.get_web_url()
     if not gateway_root:
         raise RuntimeError("FreeLLMAPI web URL is unavailable")
@@ -166,6 +266,63 @@ def run_agent(task_id: str, objective: str) -> dict:
         objective=objective,
         base_url=f"{gateway_root}/v1",
         budget=agent_carrier.Budget(),
+    )
+
+
+@app.function(
+    image=hermes_dashboard_image,
+    secrets=[freellmapi_client_secret],
+    volumes={HERMES_DASHBOARD_HOME: hermes_dashboard_volume},
+    cpu=1.0,
+    memory=2048,
+    timeout=3600,
+    max_containers=1,
+    min_containers=0,
+    scaledown_window=300,
+)
+@modal.concurrent(max_inputs=20)
+@modal.web_server(HERMES_DASHBOARD_PORT, startup_timeout=180)
+def dashboard() -> None:
+    """Serve native Hermes Web Dashboard with persistent interactive state."""
+    if not HERMES_DASHBOARD_OAUTH_CLIENT_ID.startswith("agent:"):
+        raise RuntimeError("Hermes dashboard OAuth client id is invalid")
+    if not HERMES_DASHBOARD_PUBLIC_URL.startswith("https://"):
+        raise RuntimeError("Hermes dashboard public URL must use HTTPS")
+
+    gateway_root = freellmapi.get_web_url()
+    if not gateway_root:
+        raise RuntimeError("FreeLLMAPI web URL is unavailable")
+    gateway_root = gateway_root.rstrip("/")
+
+    os.makedirs(HERMES_DASHBOARD_HOME, exist_ok=True)
+    env = os.environ.copy()
+    env["HERMES_HOME"] = HERMES_DASHBOARD_HOME
+    env["FREELLMAPI_BASE_URL"] = f"{gateway_root}/v1"
+    env["HERMES_DASHBOARD_OAUTH_CLIENT_ID"] = HERMES_DASHBOARD_OAUTH_CLIENT_ID
+    env["HERMES_DASHBOARD_PUBLIC_URL"] = HERMES_DASHBOARD_PUBLIC_URL
+    os.environ.update(
+        {
+            "HERMES_HOME": HERMES_DASHBOARD_HOME,
+            "FREELLMAPI_BASE_URL": f"{gateway_root}/v1",
+            "HERMES_DASHBOARD_OAUTH_CLIENT_ID": HERMES_DASHBOARD_OAUTH_CLIENT_ID,
+            "HERMES_DASHBOARD_PUBLIC_URL": HERMES_DASHBOARD_PUBLIC_URL,
+        }
+    )
+    _validate_dashboard_effective_policy(gateway_root)
+
+    subprocess.Popen(
+        [
+            "hermes",
+            "dashboard",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            str(HERMES_DASHBOARD_PORT),
+            "--no-open",
+            "--skip-build",
+        ],
+        cwd=HERMES_SOURCE_DIR,
+        env=env,
     )
 
 

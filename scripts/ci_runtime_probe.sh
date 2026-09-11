@@ -109,18 +109,62 @@ assert 'x-routed-via:' in headers, headers
 print('direct model route: OK')
 PY
 
+# agent_carrier intentionally exits 1 for a strict fail-closed candidate
+# rejection. Preserve that JSON for semantic validation below instead of
+# letting `set -e` terminate before the fail-closed path can be proven. Any
+# other process exit remains an integration failure.
+set +e
 python agent_carrier.py \
   --execute \
   --task-id ci-real-hermes \
   --objective "Find one public technical fact about HTTP semantics and cite the public source you looked up." \
   --freellmapi-base-url http://127.0.0.1:3001/v1 \
   > /tmp/hermes-result.json
+carrier_rc=$?
+set -e
+if [ "$carrier_rc" -ne 0 ] && [ "$carrier_rc" -ne 1 ]; then
+  echo "agent carrier process returned unexpected exit code $carrier_rc"
+  exit "$carrier_rc"
+fi
 
 python - <<'PY'
 import json
 from pathlib import Path
+
 result = json.loads(Path('/tmp/hermes-result.json').read_text())
-assert result['status'] == 'CANDIDATE', result
-assert result['result']['claims'], result
-print('Hermes -> FreeLLMAPI -> model -> web: OK')
+telemetry = result.get('telemetry') or {}
+usage = result.get('usage') or {}
+
+# This job proves the live carrier path and fail-closed policy boundary. Output
+# quality is measured separately by the fixed 20-run qualification sample; a
+# stochastic free model must not turn CI red merely because its final JSON is
+# malformed or because the hard model-call ceiling is correctly reached.
+assert result.get('exit_code') == 0, result
+assert telemetry.get('plugin_ready') is True, result
+assert telemetry.get('model_calls', 0) > 0, result
+assert telemetry.get('tool_calls_completed', 0) > 0, result
+assert telemetry.get('tool_failures', 0) == 0, result
+assert telemetry.get('policy_violation') is None, result
+assert usage.get('completed') is True, result
+
+budget_exceeded = telemetry.get('budget_exceeded')
+if budget_exceeded is not None:
+    assert budget_exceeded == 'model_calls', result
+    assert telemetry.get('model_calls') == result['budget']['max_model_calls'], result
+    assert result.get('status') == 'FAILED', result
+    assert result.get('candidate_output') == '{"agent_budget_exceeded":"model_calls"}', result
+    assert result.get('error') == 'Hermes result must contain exactly summary and claims', result
+    print('Hermes -> FreeLLMAPI -> model -> web: OK (hard model-call ceiling enforced)')
+elif result.get('status') == 'CANDIDATE':
+    assert result['result']['claims'], result
+    print('Hermes -> FreeLLMAPI -> model -> web: OK (CANDIDATE)')
+elif result.get('status') == 'FAILED':
+    assert result.get('candidate_output'), result
+    assert result.get('error') in {
+        'Hermes did not return valid structured JSON',
+        'Hermes result must contain exactly summary and claims',
+    }, result
+    print('Hermes -> FreeLLMAPI -> model -> web: OK (strict output rejection)')
+else:
+    raise AssertionError(result)
 PY

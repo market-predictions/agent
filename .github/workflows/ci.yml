@@ -70,7 +70,17 @@ jobs:
           set -euo pipefail
           HERMES_REPO="$(python -c 'import runtime_versions; print(runtime_versions.HERMES_REPOSITORY)')"
           HERMES_COMMIT="$(python -c 'import runtime_versions; print(runtime_versions.HERMES_COMMIT)')"
-          git clone --filter=blob:none "$HERMES_REPO" /tmp/hermes-agent
+          for attempt in 1 2 3; do
+            rm -rf /tmp/hermes-agent
+            if git clone --filter=blob:none "$HERMES_REPO" /tmp/hermes-agent; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Hermes clone failed after $attempt attempts" >&2
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
           git -C /tmp/hermes-agent checkout --detach "$HERMES_COMMIT"
           test "$(git -C /tmp/hermes-agent rev-parse HEAD)" = "$HERMES_COMMIT"
           python -m pip install --disable-pip-version-check -e /tmp/hermes-agent

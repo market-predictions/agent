@@ -1,0 +1,51 @@
+# Administrator-managed policy for the interactive Hermes dashboard.
+# Mounted at /etc/hermes/config.yaml so Hermes' native managed-scope overlay
+# keeps these authority boundaries immutable across every interactive profile.
+model:
+  default: "auto"
+  provider: "freellmapi"
+
+providers:
+  freellmapi:
+    base_url: "${FREELLMAPI_BASE_URL}"
+    key_env: "FREELLMAPI_API_KEY"
+    api_mode: "chat_completions"
+    default_model: "auto"
+    discover_models: false
+    models:
+      - "auto"
+    extra_headers:
+      Modal-Key: "${MODAL_PROXY_KEY}"
+      Modal-Secret: "${MODAL_PROXY_SECRET}"
+
+# No direct-provider fallback in the first interactive layer. Interactive tool
+# authority is pinned separately with Hermes' native HERMES_TUI_TOOLSETS=web
+# operator override in modal_app.py. That override resolves before coding
+# posture and GUI surface additions, so user/profile state cannot re-enable
+# terminal, file, browser or delegation tools.
+fallback_providers: []
+max_concurrent_sessions: 1
+
+# The dashboard image is immutable. Optional provider/STT/tool dependencies that
+# are not part of this web-only lane must never mutate site-packages at runtime.
+security:
+  allow_lazy_installs: false
+
+database:
+  # Modal Volume is shared/persistent storage; avoid SQLite WAL assumptions on
+  # a remote mounted filesystem.
+  journal_mode: delete
+
+# Session titles are cosmetic. The auxiliary title path does not carry our
+# Modal proxy headers and previously spent time failing/falling back each chat.
+auxiliary:
+  title_generation:
+    enabled: false
+
+agent:
+  api_max_retries: 2
+  max_turns: 12
+  run_budget_seconds: 600
+  # The server process runs from the Hermes source checkout, but this dashboard
+  # is a web-research surface rather than a coding workspace.
+  coding_context: "off"

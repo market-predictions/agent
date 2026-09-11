@@ -13,11 +13,6 @@ on:
         required: true
         default: false
         type: boolean
-  push:
-    branches:
-      - bootstrap/agent-r1-gap-01
-    paths:
-      - qualification/phase1-rerun-request.json
 
 permissions:
   contents: read
@@ -54,14 +49,19 @@ jobs:
         run: python -m scripts.bootstrap_modal_runtime
       - name: Deploy pinned runtime
         run: modal deploy modal_app.py
-      - name: End-to-end smoke
-        if: ${{ github.event_name == 'push' || inputs.run_smoke }}
+      - name: Dashboard production auth-gate smoke
+        run: python -m scripts.dashboard_smoke
+      - name: Capture dashboard failure logs
+        if: ${{ failure() }}
+        run: modal app logs agent-carrier --since 15m --tail 300 --timestamps
+      - name: End-to-end bounded-worker smoke
+        if: ${{ inputs.run_smoke && success() }}
         run: modal run modal_app.py::smoke
       - name: Fixed 20-task Phase-1 qualification
-        if: ${{ github.event_name == 'push' || inputs.run_qualification }}
+        if: ${{ inputs.run_qualification && success() }}
         run: python -m scripts.phase1_qualification
       - name: Preserve qualification evidence
-        if: ${{ always() && (github.event_name == 'push' || inputs.run_qualification) }}
+        if: ${{ always() && inputs.run_qualification }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: phase1-qualification-${{ github.sha }}

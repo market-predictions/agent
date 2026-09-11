@@ -109,12 +109,23 @@ assert 'x-routed-via:' in headers, headers
 print('direct model route: OK')
 PY
 
+# agent_carrier intentionally exits 1 for a strict fail-closed candidate
+# rejection. Preserve that JSON for semantic validation below instead of
+# letting `set -e` terminate before the fail-closed path can be proven. Any
+# other process exit remains an integration failure.
+set +e
 python agent_carrier.py \
   --execute \
   --task-id ci-real-hermes \
   --objective "Find one public technical fact about HTTP semantics and cite the public source you looked up." \
   --freellmapi-base-url http://127.0.0.1:3001/v1 \
   > /tmp/hermes-result.json
+carrier_rc=$?
+set -e
+if [ "$carrier_rc" -ne 0 ] && [ "$carrier_rc" -ne 1 ]; then
+  echo "agent carrier process returned unexpected exit code $carrier_rc"
+  exit "$carrier_rc"
+fi
 
 python - <<'PY'
 import json

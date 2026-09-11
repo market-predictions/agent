@@ -13,7 +13,7 @@ on:
         required: true
         default: false
         type: boolean
-  # One-time candidate promotion trigger, final production-endpoint verification.
+  # One-time candidate promotion trigger; removed after public dashboard proof.
   push:
     branches:
       - feature/hermes-dashboard
@@ -55,10 +55,10 @@ jobs:
         run: python -m scripts.bootstrap_modal_runtime
       - name: Deploy pinned runtime
         run: modal deploy modal_app.py
-      - name: Dashboard auth-gate smoke
-        run: modal run modal_app.py::dashboard_smoke
+      - name: Dashboard production auth-gate smoke
+        run: python -m scripts.dashboard_smoke
       - name: End-to-end bounded-worker smoke
-        if: ${{ github.event_name == 'push' || inputs.run_smoke }}
+        if: ${{ inputs.run_smoke }}
         run: modal run modal_app.py::smoke
       - name: Fixed 20-task Phase-1 qualification
         if: ${{ inputs.run_qualification }}

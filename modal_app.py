@@ -116,6 +116,9 @@ hermes_dashboard_image = (
             "HERMES_DASHBOARD_PUBLIC_URL": HERMES_DASHBOARD_PUBLIC_URL,
         }
     )
+    # modal_app imports runtime_versions when Modal hydrates the web function;
+    # every function image must therefore carry that module explicitly.
+    .add_local_python_source("runtime_versions")
     .add_local_file(
         "runtime/hermes-managed-dashboard.yaml",
         "/etc/hermes/config.yaml",
@@ -195,47 +198,36 @@ def _start_volume_committer() -> None:
             time.sleep(10)
             try:
                 hermes_dashboard_volume.commit()
-            except Exception as exc:  # pragma: no cover - runtime warning path
+            except Exception as exc:  # pragma: no cover - observable runtime warning
                 print(f"Hermes dashboard volume commit failed: {type(exc).__name__}")
 
     threading.Thread(target=loop, daemon=True, name="hermes-volume-commit").start()
 
 
 def _validate_dashboard_effective_policy(gateway_root: str) -> None:
-    """Fail closed unless Hermes itself resolves the intended managed policy."""
-    expected_base_url = f"{gateway_root.rstrip('/')}/v1"
-    os.environ["FREELLMAPI_BASE_URL"] = expected_base_url
-
-    # Import only inside the Hermes dashboard image. modal_app.py remains
-    # importable in ordinary CI without installing Hermes locally.
+    """Fail closed if Hermes' managed overlay is not the effective authority."""
     from hermes_cli.config import load_config
 
     config = load_config()
-    model = config.get("model") if isinstance(config, dict) else None
-    providers = config.get("providers") if isinstance(config, dict) else None
-    provider = providers.get("freellmapi") if isinstance(providers, dict) else None
+    model = config.get("model") or {}
+    provider = (config.get("providers") or {}).get("freellmapi") or {}
     expected_headers = {
-        "Modal-Key": os.environ["MODAL_PROXY_KEY"],
-        "Modal-Secret": os.environ["MODAL_PROXY_SECRET"],
+        "Modal-Key": "${MODAL_PROXY_KEY}",
+        "Modal-Secret": "${MODAL_PROXY_SECRET}",
     }
-
-    valid = (
-        isinstance(model, dict)
-        and model.get("default") == "auto"
-        and model.get("provider") == "freellmapi"
-        and config.get("fallback_providers") == []
-        and config.get("toolsets") == ["web"]
-        and config.get("max_concurrent_sessions") == 1
-        and isinstance(provider, dict)
-        and provider.get("base_url") == expected_base_url
-        and provider.get("key_env") == "FREELLMAPI_API_KEY"
-        and provider.get("default_model") == "auto"
-        and provider.get("models") == ["auto"]
-        and provider.get("extra_headers") == expected_headers
-    )
-    if not valid:
-        # Never print effective config: it contains protected proxy credentials
-        # after ${...} expansion.
+    checks = [
+        model.get("default") == "auto",
+        model.get("provider") == "freellmapi",
+        provider.get("base_url") == f"{gateway_root.rstrip('/')}/v1",
+        provider.get("key_env") == "FREELLMAPI_API_KEY",
+        provider.get("api_mode") == "chat_completions",
+        provider.get("default_model") == "auto",
+        provider.get("extra_headers") == expected_headers,
+        config.get("fallback_providers") == [],
+        config.get("toolsets") == ["web"],
+        config.get("max_concurrent_sessions") == 1,
+    ]
+    if not all(checks):
         raise RuntimeError("Hermes managed dashboard policy is not effective")
 
 
@@ -251,12 +243,9 @@ def _validate_dashboard_effective_policy(gateway_root: str) -> None:
 )
 @modal.concurrent(max_inputs=1)
 def run_agent(task_id: str, objective: str) -> dict:
-    """Run one bounded headless Hermes task through deployed FreeLLMAPI."""
+    """Run one bounded headless Hermes task through protected FreeLLMAPI."""
     import agent_carrier
 
-    # Resolve the protected gateway inside trusted runtime code. Callers never
-    # supply a credential-bearing destination, so they cannot redirect the
-    # bearer/proxy credentials or bypass the canonical FreeLLMAPI service.
     gateway_root = freellmapi.get_web_url()
     if not gateway_root:
         raise RuntimeError("FreeLLMAPI web URL is unavailable")
@@ -289,18 +278,26 @@ def dashboard() -> None:
     if not HERMES_DASHBOARD_PUBLIC_URL.startswith("https://"):
         raise RuntimeError("Hermes dashboard public URL must use HTTPS")
 
-    # Resolve only the canonical protected gateway URL here. The dashboard UI
-    # must not block on a second service cold-start before login; the actual
-    # inference path probes/wakes FreeLLMAPI when a chat/model call needs it.
     gateway_root = freellmapi.get_web_url()
     if not gateway_root:
         raise RuntimeError("FreeLLMAPI web URL is unavailable")
     gateway_root = gateway_root.rstrip("/")
 
     os.makedirs(HERMES_DASHBOARD_HOME, exist_ok=True)
-    _validate_dashboard_effective_policy(gateway_root)
     env = os.environ.copy()
     env["HERMES_HOME"] = HERMES_DASHBOARD_HOME
+    env["FREELLMAPI_BASE_URL"] = f"{gateway_root}/v1"
+    env["HERMES_DASHBOARD_OAUTH_CLIENT_ID"] = HERMES_DASHBOARD_OAUTH_CLIENT_ID
+    env["HERMES_DASHBOARD_PUBLIC_URL"] = HERMES_DASHBOARD_PUBLIC_URL
+    os.environ.update(
+        {
+            "HERMES_HOME": HERMES_DASHBOARD_HOME,
+            "FREELLMAPI_BASE_URL": f"{gateway_root}/v1",
+            "HERMES_DASHBOARD_OAUTH_CLIENT_ID": HERMES_DASHBOARD_OAUTH_CLIENT_ID,
+            "HERMES_DASHBOARD_PUBLIC_URL": HERMES_DASHBOARD_PUBLIC_URL,
+        }
+    )
+    _validate_dashboard_effective_policy(gateway_root)
 
     _start_volume_committer()
     subprocess.Popen(

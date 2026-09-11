@@ -10,8 +10,6 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import threading
-import time
 import urllib.request
 
 import modal
@@ -50,7 +48,9 @@ freellmapi_client_secret = modal.Secret.from_name(
 )
 
 # One writer only. This stores interactive profiles/sessions/memory; it is not
-# Control state, a framework queue or target-project business truth.
+# Control state, a framework queue or target-project business truth. Modal
+# Volume mounts already use native background commits, so no second commit loop
+# is maintained inside the dashboard process.
 hermes_dashboard_volume = modal.Volume.from_name(
     MODAL_HERMES_DASHBOARD_VOLUME,
     create_if_missing=True,
@@ -200,20 +200,6 @@ def _probe_gateway(gateway_root: str) -> None:
             raise RuntimeError(f"FreeLLMAPI health probe returned HTTP {response.status}")
 
 
-def _start_volume_committer() -> None:
-    """Persist the single dashboard writer's state with a small bounded lag."""
-
-    def loop() -> None:
-        while True:
-            time.sleep(10)
-            try:
-                hermes_dashboard_volume.commit()
-            except Exception as exc:  # pragma: no cover - observable runtime warning
-                print(f"Hermes dashboard volume commit failed: {type(exc).__name__}")
-
-    threading.Thread(target=loop, daemon=True, name="hermes-volume-commit").start()
-
-
 def _validate_dashboard_effective_policy(gateway_root: str) -> None:
     """Fail closed if Hermes' expanded managed overlay is not effective."""
     from hermes_cli.config import load_config
@@ -221,6 +207,10 @@ def _validate_dashboard_effective_policy(gateway_root: str) -> None:
     config = load_config()
     model = config.get("model") or {}
     provider = (config.get("providers") or {}).get("freellmapi") or {}
+    security = config.get("security") or {}
+    auxiliary = config.get("auxiliary") or {}
+    title_generation = auxiliary.get("title_generation") or {}
+    agent = config.get("agent") or {}
     # load_config() expands ${VAR} references. Compare the effective values to
     # the process secrets without ever logging those values.
     expected_headers = {
@@ -238,6 +228,9 @@ def _validate_dashboard_effective_policy(gateway_root: str) -> None:
         "fallback_providers": config.get("fallback_providers") == [],
         "tui_toolsets": os.environ.get("HERMES_TUI_TOOLSETS") == "web",
         "max_concurrent_sessions": config.get("max_concurrent_sessions") == 1,
+        "security.allow_lazy_installs": security.get("allow_lazy_installs") is False,
+        "auxiliary.title_generation.enabled": title_generation.get("enabled") is False,
+        "agent.coding_context": agent.get("coding_context") == "off",
     }
     failed = [name for name, passed in checks.items() if not passed]
     if failed:
@@ -317,7 +310,6 @@ def dashboard() -> None:
     )
     _validate_dashboard_effective_policy(gateway_root)
 
-    _start_volume_committer()
     subprocess.Popen(
         [
             "hermes",

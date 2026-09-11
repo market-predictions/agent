@@ -26,12 +26,26 @@ providers:
 fallback_providers: []
 max_concurrent_sessions: 1
 
+# The dashboard image is immutable. Optional provider/STT/tool dependencies that
+# are not part of this web-only lane must never mutate site-packages at runtime.
+security:
+  allow_lazy_installs: false
+
 database:
   # Modal Volume is shared/persistent storage; avoid SQLite WAL assumptions on
   # a remote mounted filesystem.
   journal_mode: delete
 
+# Session titles are cosmetic. The auxiliary title path does not carry our
+# Modal proxy headers and previously spent time failing/falling back each chat.
+auxiliary:
+  title_generation:
+    enabled: false
+
 agent:
   api_max_retries: 2
   max_turns: 12
   run_budget_seconds: 600
+  # The server process runs from the Hermes source checkout, but this dashboard
+  # is a web-research surface rather than a coding workspace.
+  coding_context: "off"

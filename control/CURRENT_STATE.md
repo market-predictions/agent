@@ -1,6 +1,6 @@
 # Agent Framework — Current Project Facts
 
-**Observed date:** 2026-09-11  
+**Observed date:** 2026-09-12  
 **Repository:** `market-predictions/agent`  
 **Status type:** project-local implementation snapshot only  
 **Control runtime/status authority:** **no**
@@ -13,9 +13,15 @@
 architecture_version=v0.5
 bounded_carrier_state=PHASE1_QUALIFIED_EXTERNAL_REVIEW_PENDING
 interactive_dashboard_state=DEPLOYED_AUTHENTICATED_BROWSER_CHAT_PROVEN
-interactive_dashboard_persistence_restart_proven=false
+interactive_dashboard_process_restart_observed=true
+interactive_dashboard_persistence_state_recovery_proven=false
 interactive_dashboard_websocket_browser_proven=true
+interactive_dashboard_long_lived_stability_after_simplification_proven=false
 interactive_dashboard_web_only_authority_pinned=true
+interactive_dashboard_runtime_lazy_installs=false
+interactive_dashboard_aux_title_generation=false
+interactive_dashboard_coding_context=false
+interactive_dashboard_custom_volume_commit_loop=false
 github_source_of_truth=true
 real_hermes_freellm_model_web_chain_proven=true
 modal_runtime_code_present=true
@@ -54,9 +60,11 @@ pinned Hermes 0.21.1 / exact commit
   -> strict CANDIDATE
 ```
 
-A clean GitHub-hosted proof installs exact source, pulls/starts exact FreeLLMAPI, verifies gateway auth, performs direct real `model=auto` inference with `X-Routed-Via`, then completes the actual Hermes web-tool carrier.
+A clean GitHub-hosted proof installs exact source, pulls/starts exact FreeLLMAPI, verifies gateway auth, performs direct real `model=auto` inference with `X-Routed-Via`, then proves the actual Hermes web-tool path and fail-closed output boundary.
 
 The fixed 20-run qualification produced 18 strict source-bearing candidates. Manual source readback confirmed all 18 candidate claims, yielding 90% human-usable output against the initial approximately 70% gate. Both non-candidate runs remained fail-closed.
+
+The GitHub live integration probe deliberately accepts a recognized strict-output rejection as integration success when the real model/tool loop completed correctly. Candidate usefulness is measured by the fixed 20-run qualification, not by requiring one stochastic free-model sample to be valid JSON every time. The production parser remains strict.
 
 The bounded output authority remains `CANDIDATE`. Qualification does not create `RESULT_READY`.
 
@@ -69,17 +77,28 @@ Verified live facts:
 - public Modal dashboard endpoint deployed;
 - native Nous Portal OAuth completes in a real browser;
 - anonymous session API access fails closed;
-- browser-facing WebSocket/chat remains connected after the dashboard-only compression compatibility fix;
-- a real interactive prompt completed Hermes web search and returned an answer;
+- browser-facing WebSocket/chat completes a real Hermes web search and answer after the dashboard-only compression compatibility fix;
 - dashboard runtime is hard-pinned with `HERMES_TUI_TOOLSETS=web`;
 - dashboard startup fails closed if that operator pin or the FreeLLMAPI provider boundary is missing;
-- terminal, file mutation, browser automation, code execution and delegation are not part of the intended interactive model authority;
+- terminal, file mutation, browser automation, code execution and delegation are outside the intended interactive model authority;
 - one persistent Modal Volume is present for interactive profiles/sessions/state only;
-- restart/scale-down persistence has not yet been intentionally proven.
+- a dashboard process/container stop and later fresh startup have been observed in production logs;
+- actual recovery of a known prior session/profile after that restart is not yet proven.
+
+A later log review exposed event-loop stalls of approximately 13s, 10s and 55s followed by heartbeat/send failure. The same fresh dashboard process also lazy-installed unused Bedrock/STT dependencies. Rather than add more watchdogs, the deployed runtime was simplified:
+
+- the Agent-owned 10-second `Volume.commit()` loop was removed because Modal Volume mounts already use native background commits;
+- `security.allow_lazy_installs=false` prevents runtime package mutation;
+- auxiliary title generation is disabled because it is cosmetic and its proxy-auth path was failing/falling back;
+- `agent.coding_context=off` prevents the dashboard server's source checkout from activating a coding posture.
+
+The simplified runtime was promoted through canonical deploy run `34653728334`; deployment, dashboard auth-boundary smoke and bounded-worker smoke all passed.
+
+Long-lived browser stability after this simplification is not yet claimed; it requires another real browser observation.
 
 The dashboard uses one active container maximum. Modal accepts multiple simultaneous HTTP/WebSocket inputs so the native UI transport can function, while Hermes itself remains limited to one concurrent interactive session.
 
-The dashboard's exact Hermes checkout gets one narrow source-anchor-checked Uvicorn setting change (`ws_per_message_deflate=False`) because real production evidence showed protocol close code `1002` through the Modal intermediary. The bounded worker remains unpatched exact upstream Hermes.
+The dashboard's exact Hermes checkout gets one narrow source-anchor-checked Uvicorn setting change (`ws_per_message_deflate=False`) because production evidence showed protocol close code `1002` through the Modal intermediary. The bounded worker remains unpatched exact upstream Hermes.
 
 ## Security/capability facts
 
@@ -119,13 +138,13 @@ Temporary path-limited triggers used only for a deliberate promotion are removed
 Candidate CI has two layers:
 
 1. deterministic compile/tests/topology/contract checks;
-2. exact upstream integration with a real free model and real Hermes web-tool execution.
+2. exact upstream integration with a real free model, real Hermes web-tool execution and verification that strict output failures remain fail-closed.
 
 The fixed qualification evidence remains historically bound to its measured runtime candidate; later interactive-dashboard work does not rewrite that evidence or relax the bounded worker.
 
 Remaining bounded `AGENT-R1-GAP-01` gate: required fresh external exact-candidate review.
 
-Remaining interactive-dashboard proof: intentional restart/scale-down persistence check, followed by fresh exact-candidate external review once the branch is final.
+Remaining interactive-dashboard proof: fresh-session web-only banner confirmation, long-lived browser observation after runtime simplification, known-state recovery after restart/scale-down, then fresh exact-candidate external review once the branch is final.
 
 ## Control governance state
 

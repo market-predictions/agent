@@ -2,8 +2,8 @@
 
 **Repository:** `market-predictions/agent`  
 **Version:** 0.5 — bounded carrier + isolated interactive Hermes dashboard  
-**Status:** bounded Phase-1 carrier qualified; interactive web path deployed and browser-proven; external review/persistence verification remain  
-**Date:** 2026-09-11  
+**Status:** bounded Phase-1 carrier qualified; interactive web path deployed/browser-proven; long-lived post-simplification stability and state-recovery proof remain  
+**Date:** 2026-09-12  
 **Canonical:** yes — this document is the single current architecture truth.
 
 Historical rationale lives in `docs/DESIGN_REVIEW_10_ITERATIONS.md`; implementation sequence in `docs/ROADMAP.md`; operations in `docs/OPERATIONS.md`.
@@ -94,10 +94,12 @@ real free routed model
 Hermes live web lookup
         |
         v
-strict structured CANDIDATE
+strict structured CANDIDATE or fail-closed rejection
 ```
 
 The worker resolves the deployed FreeLLMAPI service URL inside trusted runtime code. Callers cannot provide or redirect the credential-bearing gateway destination.
+
+The production parser remains strict. The fixed 20-run qualification owns output-quality measurement. The single-sample live CI probe owns transport/runtime integration and therefore treats a recognized strict-output rejection as successful fail-closed integration evidence after the real model/tool path has completed. This avoids making CI depend on a stochastic free model producing perfect JSON on every run without weakening runtime acceptance.
 
 ---
 
@@ -128,7 +130,10 @@ Properties:
 - Modal request concurrency up to 20 to support the native dashboard's concurrent HTTP/WebSocket transport;
 - Hermes `max_concurrent_sessions=1`;
 - model/provider/fallback boundary validated fail-closed at startup;
-- interactive model tool authority hard-pinned with `HERMES_TUI_TOOLSETS=web`.
+- interactive model tool authority hard-pinned with `HERMES_TUI_TOOLSETS=web`;
+- runtime package mutation disabled with `security.allow_lazy_installs=false`;
+- auxiliary session-title generation disabled;
+- automatic coding-workspace posture disabled with `agent.coding_context=off`.
 
 The `HERMES_TUI_TOOLSETS` pin is deliberate. Hermes' TUI/dashboard otherwise resolves `platform_toolsets.cli` and may auto-select a coding posture when started inside a repository. The explicit operator pin resolves before those paths and prevents GUI/session state from re-adding terminal, file, browser, code-execution, delegation or memory tools.
 
@@ -140,7 +145,21 @@ Only the dashboard image therefore applies one narrow compatibility patch to the
 
 A subsequent authenticated browser session remained connected long enough to perform a live Hermes web search and return a sourced answer. This proves the real browser WebSocket/chat path, not just HTTP health.
 
-Persistence across an intentional dashboard restart/scale-down remains a separate runtime proof and is not inferred from the Volume configuration alone.
+### Runtime simplification after long-stall evidence
+
+A later production log showed a distinct issue: event-loop stalls around 13s, 10s and 55s, followed by heartbeat/send failure. The same cold-start also performed unnecessary lazy installs for capabilities outside the web-only lane. The application additionally ran its own 10-second `Volume.commit()` thread even though Modal Volume mounts already provide native background commits.
+
+The response was simplification, not another reliability layer:
+
+- delete the custom Volume commit thread;
+- rely on Modal's native Volume background-commit mechanism;
+- disable Hermes runtime lazy installs;
+- disable cosmetic auxiliary title generation whose proxy-auth path was failing/falling back;
+- disable coding-context detection for this non-coding dashboard surface.
+
+This smaller runtime was successfully deployed through the canonical workflow. Production deployment and dashboard auth-boundary smoke passed; bounded worker smoke also remained green.
+
+The logs prove that a dashboard process/container stopped and later cold-started. They do not by themselves prove restoration of a known prior user/session object. State-recovery persistence and long-lived WebSocket stability after the simplification therefore remain explicit runtime verification items.
 
 ---
 
@@ -213,7 +232,7 @@ The interactive dashboard does not receive target-project write credentials and 
 
 ## 10. Verification and deployment
 
-`.github/workflows/ci.yml` proves each candidate through deterministic code/config/topology tests plus exact upstream/runtime integration with a real free model and real Hermes web-tool execution.
+`.github/workflows/ci.yml` proves each candidate through deterministic code/config/topology tests plus exact upstream/runtime integration with a real free model and real Hermes web-tool execution. The integration probe validates either a real strict `CANDIDATE` or an explicitly recognized fail-closed output rejection after the model/tool path succeeds; the 20-run qualification remains the quality gate.
 
 `.github/workflows/deploy-modal.yml` is the only Modal deployment path. It is explicit-dispatch in steady state, bootstraps the named runtime Secrets, deploys all three runtime surfaces, runs the dashboard auth-boundary smoke and may run the bounded worker smoke or qualification sample.
 

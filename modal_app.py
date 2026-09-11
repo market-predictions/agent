@@ -121,6 +121,9 @@ hermes_dashboard_image = (
             "HERMES_HOME": HERMES_DASHBOARD_HOME,
             "HERMES_DASHBOARD_OAUTH_CLIENT_ID": HERMES_DASHBOARD_OAUTH_CLIENT_ID,
             "HERMES_DASHBOARD_PUBLIC_URL": HERMES_DASHBOARD_PUBLIC_URL,
+            # Native Hermes operator override. It resolves before coding posture
+            # and GUI surface additions, so interactive authority stays web-only.
+            "HERMES_TUI_TOOLSETS": "web",
         }
     )
     # modal_app imports runtime_versions when Modal hydrates the web function;
@@ -233,7 +236,7 @@ def _validate_dashboard_effective_policy(gateway_root: str) -> None:
         "provider.default_model": provider.get("default_model") == "auto",
         "provider.extra_headers": provider.get("extra_headers") == expected_headers,
         "fallback_providers": config.get("fallback_providers") == [],
-        "toolsets": config.get("toolsets") == ["web"],
+        "tui_toolsets": os.environ.get("HERMES_TUI_TOOLSETS") == "web",
         "max_concurrent_sessions": config.get("max_concurrent_sessions") == 1,
     }
     failed = [name for name, passed in checks.items() if not passed]

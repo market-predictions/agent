@@ -13,14 +13,6 @@ on:
         required: true
         default: false
         type: boolean
-  # Candidate-only promotion trigger; removed after public dashboard proof.
-  push:
-    branches:
-      - feature/hermes-dashboard
-    paths:
-      - .github/workflows/deploy-modal.yml
-      - modal_app.py
-      - scripts/dashboard_smoke.py
 
 permissions:
   contents: read

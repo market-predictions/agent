@@ -77,13 +77,14 @@ class RuntimeContractTests(unittest.TestCase):
         self.assertNotIn("MODAL_HERMES_DASHBOARD_AUTH_SECRET", source)
         self.assertNotIn("hermes_dashboard_auth_secret", source)
 
-    def test_dashboard_resolves_gateway_in_trusted_runtime(self):
+    def test_dashboard_resolves_gateway_in_trusted_runtime_without_forcing_cold_start(self):
         source = (ROOT / "modal_app.py").read_text(encoding="utf-8")
         dashboard_start = source.index("def dashboard()")
         dashboard_end = source.index("@app.local_entrypoint()", dashboard_start)
         dashboard_section = source[dashboard_start:dashboard_end]
         self.assertIn("gateway_root = freellmapi.get_web_url()", dashboard_section)
-        self.assertIn("_probe_gateway(gateway_root)", dashboard_section)
+        self.assertIn("_validate_dashboard_effective_policy(gateway_root)", dashboard_section)
+        self.assertNotIn("_probe_gateway(gateway_root)", dashboard_section)
 
     def test_managed_dashboard_policy_preserves_authority_boundaries(self):
         policy = (ROOT / "runtime/hermes-managed-dashboard.yaml").read_text(encoding="utf-8")

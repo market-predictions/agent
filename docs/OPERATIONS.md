@@ -89,6 +89,8 @@ The bounded smoke passes only when the chain returns a structured `CANDIDATE` af
 
 Fail closed on missing/invalid credentials, gateway failure, no eligible model/provider, wall/iteration/model/tool/retry budget violation, invalid result shape or work outside `PUBLIC_NON_PERSONAL`.
 
+The GitHub live integration probe has a narrower responsibility than the 20-run quality qualification. It proves the real FreeLLMAPI/model/Hermes/web-tool path and the fail-closed policy boundary. A stochastic free model may therefore end in either a valid `CANDIDATE` or a recognized strict-output rejection; candidate quality/usefulness remains owned by the fixed measured qualification sample. The production parser is not relaxed for CI.
+
 ## 6. Interactive dashboard operation
 
 Public endpoint:
@@ -104,7 +106,10 @@ Expected boundary:
 - only `web_search` and `web_extract` available to the interactive agent;
 - one concurrent Hermes interactive session;
 - one active dashboard container maximum;
-- persistent `/data/hermes` Modal Volume for profiles/sessions/state.
+- persistent `/data/hermes` Modal Volume for profiles/sessions/state;
+- `security.allow_lazy_installs=false` so a web-only immutable image never mutates site-packages at runtime;
+- auxiliary session-title generation disabled because it is cosmetic and its proxy-auth path is not required for chat;
+- `agent.coding_context=off` so running the server from the Hermes source checkout does not auto-select a coding workspace posture.
 
 The explicit `HERMES_TUI_TOOLSETS=web` pin is security-relevant. Do not replace it with the unrelated top-level `toolsets:` config key. In Hermes' TUI gateway, the operator environment pin resolves before coding posture and GUI toolset additions.
 
@@ -116,20 +121,25 @@ The public dashboard previously entered a reconnect loop. Persistent `gui.log` s
 
 The dashboard image now applies `runtime/patch_hermes_dashboard.py` to the exact Hermes checkout before installation. It sets Uvicorn `ws_per_message_deflate=False` and fails the image build if the expected source anchor changes. The bounded worker image is not patched.
 
+A later browser log also showed a separate operational failure mode: long event-loop stalls (13s, 10s and 55s) followed by heartbeat/send failure. The same fresh process then performed unnecessary lazy installs while an application-level 10-second Volume commit loop was also active. The dashboard was simplified instead of adding more watchdogs: the custom commit loop was removed, runtime lazy installs/title generation/coding-context were disabled, and Modal's native Volume background-commit mechanism remains the only persistence writer mechanism.
+
 If chat reconnects repeatedly again:
 
 1. confirm the deployed build reports `Hermes dashboard WebSocket compression disabled`;
-2. inspect persistent `/data/hermes/logs/gui.log` for close codes and message counts;
-3. distinguish browser-facing peers from internal `127.0.0.1` gateway peers;
-4. do not blindly raise concurrency or upgrade Hermes without evidence.
+2. inspect persistent `/data/hermes/logs/gui.log` for close codes, event-loop-stall warnings and message counts;
+3. confirm no new `Lazy-installing ...` lines appear in the managed dashboard process;
+4. distinguish browser-facing peers from internal `127.0.0.1` gateway peers;
+5. do not blindly raise concurrency, add another commit loop or upgrade Hermes without evidence.
 
-A real authenticated browser session has remained connected and completed a live web search after this fix.
+A real authenticated browser session has remained connected and completed a live web search after the compression fix. Long-lived stability after the later runtime simplification still requires browser observation.
 
 ## 8. Persistence verification
 
-A Modal Volume is configured and committed periodically, but configuration alone is not proof of recovery behavior. Before calling persistence complete, intentionally restart/scale down the dashboard, reconnect through OAuth and verify expected profile/session state survives.
+The dashboard mounts one Modal Volume at `/data/hermes`. Modal Volume mounts already use native background commits; there is deliberately no Agent-owned timer thread calling `Volume.commit()`.
 
-Until that test is performed, report persistence as **implemented, not yet restart-proven**.
+The observed logs prove that the dashboard process/container has stopped and later cold-started again, but process restart alone does not prove that the expected interactive user/session state survived. Before calling persistence complete, reconnect after scale-down and verify a known prior profile/session can actually be recovered.
+
+Until that state-recovery check is performed, report persistence as **implemented and restart observed, state recovery not yet proven**.
 
 ## 9. Verification without Modal
 

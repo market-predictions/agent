@@ -13,13 +13,6 @@ on:
         required: true
         default: false
         type: boolean
-  # One-shot autonomous promotion for the corrected public OAuth client id.
-  # Remove this trigger immediately after the production verification succeeds.
-  push:
-    branches:
-      - feature/hermes-dashboard
-    paths:
-      - runtime_versions.py
 
 permissions:
   contents: read
@@ -62,7 +55,7 @@ jobs:
         if: ${{ failure() }}
         run: modal app logs agent-carrier --since 15m --tail 300 --timestamps
       - name: End-to-end bounded-worker smoke
-        if: ${{ (github.event_name == 'push' || inputs.run_smoke) && success() }}
+        if: ${{ inputs.run_smoke && success() }}
         run: modal run modal_app.py::smoke
       - name: Fixed 20-task Phase-1 qualification
         if: ${{ inputs.run_qualification && success() }}

@@ -1,6 +1,6 @@
 # Interactive Hermes Dashboard
 
-**Status:** implementation candidate; public OAuth registration completed; deployment verification pending  
+**Status:** implementation candidate; public OAuth registration completed; deployment verification in progress  
 **Runtime:** native Hermes `0.21.1` Web Dashboard on Modal  
 **Endpoint:** `https://market-predictions--agent-carrier-dashboard.modal.run`
 
@@ -80,14 +80,18 @@ The dashboard is part of the existing `agent-carrier` Modal App. It does not get
     -> modal deploy modal_app.py
 ```
 
-That workflow runs `modal_app.py::dashboard_smoke` after deployment. The smoke must prove:
+After deployment the workflow runs `python -m scripts.dashboard_smoke` directly against the production hostname. It deliberately does not use `modal run` for dashboard verification, because a Modal local entrypoint creates temporary `-dev.modal.run` web functions and therefore is not a production-endpoint test.
 
-1. the deployed URL exactly matches the registered public URL;
-2. `/api/status` is reachable;
-3. `auth_required=true`;
-4. the `nous` auth provider is active.
+The production smoke proves:
 
-The final user-facing verification is then browser login followed by a real `/chat` session through FreeLLMAPI and a persistence check across a container restart/scale-down.
+1. `/api/auth/providers` is publicly reachable for login bootstrap;
+2. the `nous` OAuth provider is registered;
+3. anonymous access to `/api/sessions` is rejected fail-closed (401 or a same-origin redirect to `/login`);
+4. redirects are not followed by the probe, so an OAuth browser round-trip cannot masquerade as a health check.
+
+The pinned Hermes release may protect `/api/status` differently from newer upstream revisions, so `/api/status` is not used as the auth-gate oracle. Provider bootstrap plus rejection of a genuinely gated API route tests the security property directly.
+
+The final user-facing verification is browser login followed by a real `/chat` session through FreeLLMAPI and a persistence check across a container restart/scale-down.
 
 ## Domain
 

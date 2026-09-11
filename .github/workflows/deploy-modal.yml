@@ -19,6 +19,7 @@ on:
       - feature/hermes-dashboard
     paths:
       - .github/workflows/deploy-modal.yml
+      - modal_app.py
       - scripts/dashboard_smoke.py
 
 permissions:

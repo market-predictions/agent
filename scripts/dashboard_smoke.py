@@ -14,6 +14,11 @@ import urllib.request
 
 from runtime_versions import HERMES_DASHBOARD_PUBLIC_URL
 
+# Modal's web_server startup_timeout is 180 seconds. A scale-to-zero dashboard
+# may legitimately spend most of that budget starting its larger Hermes/UI
+# image, so the external smoke must not impose a shorter contradictory timeout.
+_REQUEST_TIMEOUT_SECONDS = 210
+
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ANN001
@@ -29,7 +34,7 @@ def _get(path: str) -> tuple[int, str | None, bytes]:
     )
     opener = urllib.request.build_opener(_NoRedirect())
     try:
-        with opener.open(request, timeout=45) as response:
+        with opener.open(request, timeout=_REQUEST_TIMEOUT_SECONDS) as response:
             return response.status, response.headers.get("Location"), response.read()
     except urllib.error.HTTPError as exc:
         return exc.code, exc.headers.get("Location"), exc.read()

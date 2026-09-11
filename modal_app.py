@@ -205,30 +205,37 @@ def _start_volume_committer() -> None:
 
 
 def _validate_dashboard_effective_policy(gateway_root: str) -> None:
-    """Fail closed if Hermes' managed overlay is not the effective authority."""
+    """Fail closed if Hermes' expanded managed overlay is not effective."""
     from hermes_cli.config import load_config
 
     config = load_config()
     model = config.get("model") or {}
     provider = (config.get("providers") or {}).get("freellmapi") or {}
+    # load_config() expands ${VAR} references. Compare the effective values to
+    # the process secrets without ever logging those values.
     expected_headers = {
-        "Modal-Key": "${MODAL_PROXY_KEY}",
-        "Modal-Secret": "${MODAL_PROXY_SECRET}",
+        "Modal-Key": os.environ["MODAL_PROXY_KEY"],
+        "Modal-Secret": os.environ["MODAL_PROXY_SECRET"],
     }
-    checks = [
-        model.get("default") == "auto",
-        model.get("provider") == "freellmapi",
-        provider.get("base_url") == f"{gateway_root.rstrip('/')}/v1",
-        provider.get("key_env") == "FREELLMAPI_API_KEY",
-        provider.get("api_mode") == "chat_completions",
-        provider.get("default_model") == "auto",
-        provider.get("extra_headers") == expected_headers,
-        config.get("fallback_providers") == [],
-        config.get("toolsets") == ["web"],
-        config.get("max_concurrent_sessions") == 1,
-    ]
-    if not all(checks):
-        raise RuntimeError("Hermes managed dashboard policy is not effective")
+    checks = {
+        "model.default": model.get("default") == "auto",
+        "model.provider": model.get("provider") == "freellmapi",
+        "provider.base_url": provider.get("base_url") == f"{gateway_root.rstrip('/')}/v1",
+        "provider.key_env": provider.get("key_env") == "FREELLMAPI_API_KEY",
+        "provider.api_mode": provider.get("api_mode") == "chat_completions",
+        "provider.default_model": provider.get("default_model") == "auto",
+        "provider.extra_headers": provider.get("extra_headers") == expected_headers,
+        "fallback_providers": config.get("fallback_providers") == [],
+        "toolsets": config.get("toolsets") == ["web"],
+        "max_concurrent_sessions": config.get("max_concurrent_sessions") == 1,
+    }
+    failed = [name for name, passed in checks.items() if not passed]
+    if failed:
+        # Field names are safe diagnostics; values may contain secrets and are
+        # intentionally never emitted.
+        raise RuntimeError(
+            "Hermes managed dashboard policy is not effective: " + ", ".join(failed)
+        )
 
 
 @app.function(

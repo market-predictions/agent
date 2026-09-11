@@ -289,13 +289,13 @@ def dashboard() -> None:
     if not HERMES_DASHBOARD_PUBLIC_URL.startswith("https://"):
         raise RuntimeError("Hermes dashboard public URL must use HTTPS")
 
-    # Resolve the protected gateway inside the trusted dashboard runtime too;
-    # no browser/user input can redirect gateway credentials.
+    # Resolve only the canonical protected gateway URL here. The dashboard UI
+    # must not block on a second service cold-start before login; the actual
+    # inference path probes/wakes FreeLLMAPI when a chat/model call needs it.
     gateway_root = freellmapi.get_web_url()
     if not gateway_root:
         raise RuntimeError("FreeLLMAPI web URL is unavailable")
     gateway_root = gateway_root.rstrip("/")
-    _probe_gateway(gateway_root)
 
     os.makedirs(HERMES_DASHBOARD_HOME, exist_ok=True)
     _validate_dashboard_effective_policy(gateway_root)

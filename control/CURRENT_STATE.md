@@ -1,21 +1,31 @@
 # Agent Framework — Current Project Facts
 
-**Observed at:** 2026-09-09 21:27 Europe/Amsterdam  
+**Observed date:** 2026-09-10  
 **Repository:** `market-predictions/agent`  
 **Status type:** project-local implementation snapshot only  
 **Control runtime/status authority:** **no**
 
-> This file summarizes bounded project facts for operators and governed work. It is not the Control runtime queue, does not establish global Control status, and must never override current Mission/repository authority or live GitHub facts.
+> Live GitHub/Modal facts override this snapshot. This file is not the Control runtime queue and never grants lifecycle authority.
 
 ## Current implementation state
 
 ```text
 architecture_version=v0.4
-implementation_state=PRE_IMPLEMENTATION_WITH_BOOTSTRAP_CANDIDATE
+implementation_state=PHASE1_CARRIER_QUALIFIED_EXTERNAL_REVIEW_PENDING
 github_source_of_truth=true
-modal_runtime_deployed=false
-hermes_runtime_deployed=false
-freellmapi_deployed=false
+real_hermes_freellm_model_web_chain_proven=true
+modal_runtime_code_present=true
+modal_live_deployment_proven=true
+modal_remote_smoke_proven=true
+modal_deployment_blocker=NONE
+modal_runtime_secret_bootstrap_proven=true
+phase1_qualification_runs=20
+phase1_structured_candidate_rate=0.90
+phase1_human_usable_rate=0.90
+phase1_supported_candidate_claim_rate=1.00
+phase1_external_review_passed=false
+hermes_runtime_pinned=true
+freellmapi_runtime_pinned=true
 trusted_verifier_deployed=false
 worker_fanout_deployed=false
 mobile_interactive_hermes_deployed=false
@@ -24,25 +34,80 @@ framework_queue_present=false
 production_project_write_authority=false
 control_management_status=CONTROL_MANAGED
 bootstrap_candidate_pr=1
-bootstrap_handoff_status=CANDIDATE_BINDING_BLOCKED
+control_baseline=FROZEN
 ```
 
-## Current product decisions
+## Proven and qualified Phase-1 carrier
 
-- Hermes is the selected agent runtime.
-- FreeLLMAPI is the canonical inference gateway from the first proof.
-- Phase 1 uses all providers for which FreeLLMAPI has valid configuration/credentials; there is no temporary direct-provider path or hand-maintained one-provider pilot.
-- Modal is the planned cloud runtime.
-- The first generic inference lane is `PUBLIC_NON_PERSONAL` only.
-- The first worker is one bounded fixed-safe-tool Hermes one-shot.
-- Independent evidence verification is a separate trusted function.
-- Worker fan-out is introduced only after a measured diversity/value experiment.
-- Modal Sandbox is introduced only for task classes that actually need shell/generated-code/broad executable tooling.
-- Mobile/interactive Hermes is a planned later capability and remains separate from bounded-worker business authority.
+PR #1 contains and has executed the actual bounded runtime chain:
+
+```text
+pinned Hermes 0.21.1 / exact commit
+  -> named Hermes provider freellmapi
+  -> pinned FreeLLMAPI 0.9.8 / exact image digest
+  -> keyless Kilo + OVH bootstrap
+  -> real routed free model
+  -> Hermes live web tool
+  -> strict CANDIDATE
+```
+
+A clean GitHub-hosted proof installs Hermes from the exact source commit, pulls/starts the exact FreeLLMAPI image, verifies gateway authentication, performs a direct real `model=auto` inference with `X-Routed-Via`, and then completes the actual Hermes web-tool carrier.
+
+The same pinned carrier is deployed on Modal. The live promotion authenticated from GitHub Actions, created the required runtime credential boundary, deployed the protected FreeLLMAPI service plus bounded Hermes Function, and completed the remote smoke with `CANDIDATE`.
+
+The fixed Phase-1 qualification then executed 20 sequential `PUBLIC_NON_PERSONAL` research tasks through the live Modal carrier. Eighteen returned strict source-bearing candidates. Manual source readback confirmed all 18 candidate claims, producing a 90% human-usable run rate against the Mission's initial approximately 70% gate. Both non-candidate runs were strict-schema failures and remained fail-closed. Detailed evidence identity and review are in `qualification/PHASE1_QUALIFICATION_REVIEW.md`.
+
+The current output authority remains `CANDIDATE`. Qualification does not create `RESULT_READY`; that requires the separate trusted verifier.
+
+## Security/capability facts
+
+- Hermes receives no upstream provider API keys.
+- Hermes receives no target-project production write credentials.
+- The generic inference lane is `PUBLIC_NON_PERSONAL` only.
+- No direct-provider bypass or second agent runtime exists.
+- Hermes exposes only the `web` toolset in the bounded worker.
+- Hard model-call, tool-call, retry, wall-time and concurrency limits are enforced fail-closed.
+- No framework DB, queue, publisher, fan-out, persistent Hermes memory, Sandbox, or paid fallback exists in PR #1.
+- The zero-key model bootstrap uses current upstream keyless Kilo and OVH adapters.
+- Modal topology caps FreeLLMAPI and Hermes at one active container each and scales them to zero.
+- GitHub holds only the Modal deployment token pair as encrypted Actions Secrets; generated runtime credentials remain in Modal Secrets.
+- The runtime bootstrap is idempotent and fails closed on partial named-Secret state.
+
+## Modal deployment boundary
+
+The canonical deployment path is `.github/workflows/deploy-modal.yml` and is explicit-dispatch only.
+
+Current verified chain:
+
+```text
+GitHub Actions repository Secrets
+  -> Modal account authentication
+  -> idempotent runtime credential bootstrap
+  -> modal deploy modal_app.py
+  -> protected FreeLLMAPI web service
+  -> bounded Hermes Function
+  -> optional remote smoke / qualification
+  -> CANDIDATE evidence
+```
+
+The one-time qualification trigger and temporary second deployment workflow were removed after the first evidence run. The qualification harness remains reusable only as an explicit option on the canonical deployment workflow. Ordinary source pushes therefore do not automatically deploy or spend Modal compute.
+
+## Verification facts
+
+Candidate CI has two layers:
+
+1. deterministic compile/tests/topology/contract checks;
+2. exact upstream integration with a real free model and real Hermes web-tool execution.
+
+The live provider proof runs once per pull-request candidate and once per merge to `main` to avoid duplicate free-provider quota use. Modal promotion is separately explicit.
+
+The 20-run qualification evidence is bound to runtime candidate `a74871525458e47f69fa2c01ba6d0bdfc4a01202`; later PR #1 cleanup changes only evidence/documentation/workflow surfaces and does not relax or replace the measured worker runtime. Exact current PR head/check status must always be read live from PR #1.
+
+The remaining `AGENT-R1-GAP-01` acceptance gate is a fresh external exact-candidate review after final exact-head CI.
 
 ## Control governance state
 
-`AGENT_FRAMEWORK` is canonically onboarded under Control V4.
+`AGENT_FRAMEWORK` is canonically onboarded under Control V4:
 
 ```text
 control_adoption_pr=252
@@ -52,73 +117,14 @@ mission_revision=2026-09-09-r1
 repository_authority=control/repository-authority/market-predictions__agent.json
 ```
 
-Post-adoption readback confirmed both authority files on `market-predictions/control-plane@main`. PR #250 is closed as superseded; PR #252 is historical adoption evidence, not a state plane.
+Control remains deliberately frozen. The known candidate-less BUILD / existing-candidate binding limitation is not an Agent runtime blocker and is not worked around with another scheduler, queue, poller, or semantic actor.
 
-Current Control lifecycle/status must be read from Control's canonical V4 runtime sources, not inferred from this file.
+A separate proposed Mission revision may change later gap sequencing; until merged into Control main it is not canonical authority and is intentionally not reflected here as current Control state.
 
-## Bootstrap candidate
+## Scope after Phase-1 acceptance
 
-Agent PR #1 (`bootstrap/agent-r1-gap-01`) is the intentionally small implementation candidate for `AGENT-R1-GAP-01`.
-
-It establishes only:
-
-```text
-Hermes selected runtime
-  -> FreeLLMAPI-only inference boundary
-  -> model auto through custom Hermes alias
-  -> PUBLIC_NON_PERSONAL
-  -> read-only Hermes web toolset
-  -> one-task budget envelope
-  -> local boundary tests
-```
-
-The candidate code has been independently verified with six passing stdlib unit tests and successful dry-run plan generation. It does **not** claim that Hermes, FreeLLMAPI or Modal are deployed or that GAP-01 acceptance is satisfied.
-
-## Current bootstrap handoff blocker
-
-The intended handoff is not yet executable end-to-end with current Control V4.
-
-Current deterministic V4 materialization creates a newly eligible root task with:
-
-```text
-candidate=null
-phase=BUILD
-```
-
-The currently bound Runner has the explicit rule:
-
-```text
-BUILD: candidate-less BUILD always YIELDs
-```
-
-Current carrier V1 does not automatically discover or bind the already-open Agent PR #1 to that task. Therefore the project is Control-managed and the bootstrap candidate exists, but Control cannot yet enter autonomous REPAIR/REVIEW on that candidate.
-
-The smallest missing capability is **existing-candidate binding**: validate a pre-existing governed target PR and bind it through existing `CANDIDATE_READY` semantics. This should not create code/branches/PRs, a second queue/state plane, or generic candidate-less BUILD.
-
-Until that binding is governed and available, do not claim that Control has taken over GAP-01 implementation.
-
-## First governed gap
-
-The canonical Mission's first OPEN root is `AGENT-R1-GAP-01`: the Phase-1 carrier proof.
-
-```text
-Hermes
-  -> protected FreeLLMAPI
-  -> all configured free providers eligible
-  -> bounded PUBLIC_NON_PERSONAL research task
-  -> structured result + provenance
-```
-
-Canonical acceptance requires exact-head implementation/test evidence, bounded non-production Modal execution, hard model/tool/retry/time budgets, provider-key isolation, route/failure observability, at least 20 repeated quality runs with an initial approximately 70% human-usable quality gate, documentation alignment and fresh external exact-candidate review.
-
-Task materialization/lifecycle status belongs to Control's canonical runtime queue and must not be mirrored here.
-
-## Known prerequisites / likely blockers
-
-The project currently has no committed runtime credentials or deployment secrets. This is intentional.
-
-A real Modal/FreeLLMAPI proof will require externally configured credentials/secrets that are not stored in GitHub. Absence of those credentials is an operational prerequisite, not permission to embed them in repository code or documentation.
+The first carrier is qualified but not yet externally accepted. Later governed work may add interactive Hermes, independent evidence verification, optional parallelism only if measured useful, and bounded caller/project integration. Their exact sequence comes from the current canonical Mission, not from this snapshot.
 
 ## Cleanup rule
 
-Every governed change must leave one coherent current truth. Superseded direct-provider experiments, obsolete runtime paths, stale docs and conflicting configuration must be deleted rather than left as parallel alternatives unless an active governed requirement explicitly needs them.
+Every consequential change must leave one coherent current truth. Superseded code/config/docs are deleted instead of kept as parallel alternatives unless an active requirement explicitly needs them.

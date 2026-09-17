@@ -1,0 +1,2 @@
+# Local/deployment tooling only. Runtime dependencies are baked into pinned Modal images.
+modal==1.5.5

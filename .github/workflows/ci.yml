@@ -99,9 +99,11 @@ jobs:
                   json.dumps({'model': {'provider': 'freellmapi'}, 'platform_toolsets': {'cli': ['web']}}),
                   encoding='utf-8',
               )
+              (managed / '.env').write_text('OPENAI_API_KEY=\n', encoding='utf-8')
               os.environ['HERMES_MANAGED_DIR'] = tmp
               managed_scope.invalidate_managed_cache()
               assert managed_scope.is_key_managed('model.provider')
+              assert managed_scope.is_env_managed('OPENAI_API_KEY')
               merged = managed_scope.apply_managed_overlay(
                   {'model': {'provider': 'openai'}, 'platform_toolsets': {'cli': ['terminal']}}
               )

@@ -1,0 +1,35 @@
+{
+  "database": {
+    "journal_mode": "delete"
+  },
+  "model": {
+    "default": "auto",
+    "provider": "freellmapi"
+  },
+  "providers": {
+    "freellmapi": {
+      "base_url": "${FREELLMAPI_BASE_URL}",
+      "key_env": "FREELLMAPI_API_KEY",
+      "api_mode": "chat_completions",
+      "default_model": "auto",
+      "discover_models": false,
+      "models": [
+        "auto"
+      ],
+      "extra_headers": {
+        "Modal-Key": "${MODAL_PROXY_KEY}",
+        "Modal-Secret": "${MODAL_PROXY_SECRET}"
+      }
+    }
+  },
+  "platform_toolsets": {
+    "cli": [
+      "web",
+      "memory",
+      "session_search"
+    ]
+  },
+  "approvals": {
+    "mode": "manual"
+  }
+}

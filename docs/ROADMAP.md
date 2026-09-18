@@ -1,182 +1,117 @@
 # Agent Framework Roadmap
 
 **Repository:** `market-predictions/agent`  
-**Architecture:** v0.4 — Hermes + FreeLLMAPI bounded carrier  
-**Status:** canonical implementation sequence  
-**Date:** 2026-09-10
+**Canonical Mission:** `AGENT_FRAMEWORK` / `2026-09-10-r2`  
+**Status:** current implementation sequence  
+**Date:** 2026-09-18
 
-Hermes is the selected runtime. FreeLLMAPI is the sole inference gateway. There is no Pydantic AI path or direct-provider bypass.
+Hermes is the only agent runtime. FreeLLMAPI is the canonical inference gateway. GitHub is code/config/docs truth. Control owns Mission/lifecycle authority; this repository does not duplicate Control runtime state.
+
+## Governing sequence
+
+```text
+AGENT-R1-GAP-01  bounded carrier
+        ↓
+AGENT-R1-GAP-05  native authenticated web/mobile Hermes
+        ↓
+AGENT-R1-GAP-02  independent evidence verifier
+        ↓
+AGENT-R1-GAP-03  one-vs-two-worker value experiment
+        ↓
+AGENT-R1-GAP-04  bounded real caller integration
+```
+
+This order comes from Mission revision `2026-09-10-r2`. Earlier repo documentation that placed the interactive dashboard after verifier/fan-out is superseded.
 
 ---
 
-## Roadmap principle
+## AGENT-R1-GAP-01 — bounded Hermes + FreeLLMAPI carrier
 
-```text
-smallest working carrier
-        ↓
-measured evidence
-        ↓
-next smallest justified capability
-```
+**State:** integrated / Control `DONE`.
 
-Control remains frozen during current Agent implementation.
-
----
-
-# Phase 1A — Working Hermes + FreeLLMAPI carrier
-
-## Status: PROVEN
-
-The core chain is operational on a clean GitHub-hosted runner:
-
-```text
-pinned Hermes
-  -> named FreeLLMAPI provider
-  -> pinned FreeLLMAPI
-  -> keyless free model pool
-  -> real routed model
-  -> Hermes live web tool
-  -> strict CANDIDATE
-```
-
-Implemented and verified:
+Proven current path:
 
 - Hermes `0.21.1`, exact commit `2237be355906fbe6065ce1815711eee52b2d646e`;
-- upstream-supported exact source/editable installation;
-- top-level Hermes script one-shot (`-z`);
-- named Hermes provider `freellmapi`, model `auto`;
-- Hermes `web` toolset only;
-- strict `PUBLIC_NON_PERSONAL` instruction and JSON candidate contract;
-- hard wall/turn/model-call/tool-call/retry/concurrency bounds;
-- FreeLLMAPI `0.9.8` exact image digest;
-- stable unified-key bootstrap through FreeLLMAPI's own DB API;
-- keyless Kilo + OVH declarative bootstrap;
-- authenticated `/v1/models`;
-- direct real `model=auto` inference with `X-Routed-Via`;
-- real Hermes -> FreeLLMAPI -> model -> live web-tool execution;
-- provider credentials kept outside Hermes;
-- full-SHA GitHub Actions and no persisted checkout credential.
+- FreeLLMAPI `0.9.8`, exact image digest;
+- protected Modal FreeLLMAPI service;
+- one bounded Modal Hermes worker;
+- `PUBLIC_NON_PERSONAL` lane;
+- web-only fixed tools in the bounded worker;
+- hard model/tool/retry/time/concurrency limits;
+- real Hermes → FreeLLMAPI → free model → web-tool loop;
+- 20-run qualification at 90% human-usable output;
+- no direct-provider bypass, framework DB/queue, production project writes or hidden paid fallback.
 
-The expensive live proof runs once per pull-request candidate and once after merge to `main`.
-
-Phase-1 output is `CANDIDATE`, not `RESULT_READY`.
+The worker still returns `CANDIDATE`; GAP-01 did not create verifier authority or business `DONE` authority.
 
 ---
 
-# Phase 1B — Modal cloud deployment
+## AGENT-R1-GAP-05 — native authenticated Hermes web dashboard
 
-## Status: PROVEN
+**State:** candidate in progress under owner-approved replenishment A8.
 
-Implemented and verified:
+Smallest complete design:
 
-- `modal_app.py` as the single cloud topology;
-- one protected FreeLLMAPI web service, max one active container, scale-to-zero;
-- one Hermes Function, max one active container, scale-to-zero;
-- exact upstream pins and same carrier code as the proven GitHub runner;
-- Modal proxy auth + FreeLLM unified bearer;
-- named Secrets `agent-hermes` and `agent-freellmapi`;
-- GitHub repository authentication through `MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET`;
-- idempotent first-deploy runtime bootstrap in `scripts/bootstrap_modal_runtime.py`;
-- `.github/workflows/deploy-modal.yml` as the only deployment workflow;
-- `docs/OPERATIONS.md` as the operator runbook;
-- successful `modal deploy modal_app.py`;
-- successful remote `modal run modal_app.py::smoke` returning `CANDIDATE`.
+- exact pinned native Hermes Web Dashboard; no fork;
+- dedicated Modal web endpoint;
+- native Nous Portal OAuth gate for the internet-facing endpoint;
+- existing protected FreeLLMAPI as the sole inference route;
+- GitHub-managed Hermes policy pins provider/model/tool capability and manual approvals;
+- direct-provider API-key names are immutable/empty in managed scope;
+- one dashboard container;
+- one dedicated Modal Volume for interactive Hermes session/memory state;
+- no Control state, framework task DB or target-project business truth in the dashboard.
 
-The runtime bootstrap generates credentials in-process, never prints them, preserves an already complete Secret pair, and fails closed on partial state. The deployment workflow is explicit-dispatch only; ordinary pushes do not deploy or consume Modal compute.
+Candidate enablement gates:
 
----
+1. deterministic and exact-upstream CI green;
+2. dashboard auth credential externally provisioned;
+3. fresh external exact-candidate review PASS;
+4. only then explicit user-facing Modal deployment/mobile proof.
 
-# Phase 1C — Qualification / AGENT-R1-GAP-01 evidence
-
-## Status: QUALIFIED — EXTERNAL REVIEW REMAINS
-
-The fixed 20-run `PUBLIC_NON_PERSONAL` qualification completed against runtime candidate `a74871525458e47f69fa2c01ba6d0bdfc4a01202`.
-
-Measured evidence:
-
-- attempted runs: **20**;
-- strict structured candidates: **18/20 = 90%**;
-- human-usable runs after source readback: **18/20 = 90%**;
-- completed web-tool loops: **20/20 = 100%**;
-- manually supported candidate claims: **18/18 = 100%**;
-- model calls: **66**;
-- tool calls: **47**;
-- retries: **0**;
-- provider errors: **0**;
-- aggregate carrier wall time: **580.178 seconds**;
-- multiple free route/model identities observed.
-
-The two rejected runs are preserved as failures: one invalid JSON response and one result that violated the exact `summary` + `claims` schema after consuming the bounded model-call budget. The carrier remained fail-closed; the parser was not weakened to improve the score.
-
-The initial approximately 70% human-usefulness gate is therefore satisfied at **90%**. See [`qualification/PHASE1_QUALIFICATION_REVIEW.md`](../qualification/PHASE1_QUALIFICATION_REVIEW.md) for the evidence identity, per-run review and source-support assessment.
-
-The fixed qualification harness remains reusable through the single canonical `.github/workflows/deploy-modal.yml` workflow via its explicit `run_qualification` input. The temporary second deployment workflow and one-shot trigger artifact were removed after the first evidence run.
-
-`max_tool_calls=20` is enforced by the native Hermes policy plugin at `pre_tool_call`; it is no longer merely a declared target.
-
-Remaining GAP-01 gate: final exact-head validation plus the required fresh external exact-candidate review.
-
-Do not add fan-out to hide weak single-worker quality.
+See `docs/INTERACTIVE_DASHBOARD.md`.
 
 ---
 
-# Phase 2 — Trusted evidence verifier
+## AGENT-R1-GAP-02 — independent evidence verifier
 
-Add one separate trusted verifier that accepts only strict candidate data and independently re-fetches cited evidence.
+**State:** dependency-blocked on GAP-05.
 
-Security boundary:
+After GAP-05 completes, add one separate trusted verifier that accepts strict candidate data only, independently re-fetches evidence and applies SSRF-hardened network rules. Only this gap may introduce `RESULT_READY`.
 
-- HTTP(S) only;
-- reject localhost/private/loopback/link-local/cloud-metadata destinations;
-- re-resolve and revalidate redirects;
-- byte/time limits;
-- never execute worker-provided code/scripts/files.
-
-Only this phase introduces `RESULT_READY`.
+Do not execute worker-provided code/scripts/files and do not let generation verify itself.
 
 ---
 
-# Phase 3 — Test whether parallelism adds value
+## AGENT-R1-GAP-03 — parallelism value experiment
 
-Compare one worker with two independent workers on the same bounded objective. Adopt fan-out only when verified quality/coverage improves enough to justify extra inference/compute. Keep Hermes recursive delegation disabled unless separately justified.
+**State:** dependency-blocked on GAP-02.
 
----
-
-# Phase 4 — Persist FreeLLMAPI state only if measured need exists
-
-Only if cold-start loss of quota/cooldown/analytics state materially harms useful capacity or diagnostics, add one Modal Volume with one writer. Do not add Redis, Postgres, horizontal router replicas, or multi-writer SQLite.
+Compare one worker against two independent workers on the same bounded objectives. Adopt Modal fan-out only if verified useful output improves enough to justify the extra inference/compute. Recursive Hermes delegation remains disabled unless a later Mission revision explicitly authorizes it.
 
 ---
 
-# Phase 5 — Capability-triggered isolation and profiles
+## AGENT-R1-GAP-04 — bounded caller/project integration
 
-Use Modal Sandbox only for a task class requiring autonomous shell, generated code, broad filesystem access, repository mutation, or untrusted executable artifacts. Add Git-backed task profiles only when at least two materially different capability/data classes exist.
+**State:** dependency-blocked on GAP-03; integration policy `HOLD_AFTER_PASS`.
 
----
+Connect at least one bounded real caller to verified `RESULT_READY/FAILED/PARTIAL` results without creating a second Control lifecycle or project database. The first integration remains result-only and holds no target-project production write credential.
 
-# Phase 6 — Caller/project integration
-
-Integrate verified results with bounded callers without duplicating Control/project state. No production write credential belongs in Hermes. Person-linked SolidDesign prospecting and sensitive Scrub data remain outside the generic free lane unless a new explicit data/inference policy is approved.
+Caller acceptance/business `DONE` remains outside Hermes and the verifier.
 
 ---
 
-# Phase 7 — Mobile / interactive Hermes
+## Continuous constraints
 
-Only after bounded carrier qualification, design a separate authenticated interactive Hermes service. Its session/memory state must not become Control state or project business truth.
+Every gap must preserve:
 
----
-
-## Continuous requirements
-
-At every phase:
-
-- GitHub remains code/config/docs truth;
-- fresh-read the Execution & Engineering Constitution for consequential work;
-- exact-pin correctness-relevant software;
-- FreeLLMAPI remains the sole inference boundary;
-- provider credentials remain outside Hermes;
-- generic free lane remains `PUBLIC_NON_PERSONAL`;
-- fail closed instead of silently switching to paid capacity;
-- deterministic work stays deterministic;
-- remove superseded code/config/docs;
-- keep README, architecture, roadmap, operations and observed behavior aligned.
+- exact/proven runtime provenance;
+- FreeLLMAPI as the sole model gateway;
+- no upstream provider credentials in Hermes;
+- least-privilege tools and data classification;
+- no hidden paid fallback;
+- no second runtime, generic queue, framework business DB or duplicate scheduler without a concrete later requirement;
+- no target-project production authority;
+- current docs matching actual behavior;
+- exact-head validation and the Mission-required review policy;
+- removal of superseded/conflicting current artifacts rather than parallel truth.

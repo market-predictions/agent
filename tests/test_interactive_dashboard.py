@@ -27,6 +27,11 @@ class InteractiveDashboardContractTests(unittest.TestCase):
         self.assertNotIn("terminal", policy["platform_toolsets"]["cli"])
         self.assertNotIn("delegation", policy["platform_toolsets"]["cli"])
 
+    def test_managed_env_blocks_all_direct_provider_credentials(self) -> None:
+        names = dashboard.load_managed_env_names()
+        self.assertEqual(names, set(dashboard.DIRECT_PROVIDER_SECRET_NAMES))
+        dashboard.validate_managed_env_policy(names)
+
     def test_policy_drift_fails_closed(self) -> None:
         policy = dashboard.load_managed_policy()
         unsafe = copy.deepcopy(policy)
@@ -38,6 +43,10 @@ class InteractiveDashboardContractTests(unittest.TestCase):
         bypass["model"]["provider"] = "openai"
         with self.assertRaises(dashboard.DashboardConfigError):
             dashboard.validate_managed_policy(bypass)
+
+        incomplete_env = set(dashboard.DIRECT_PROVIDER_SECRET_NAMES) - {"OPENAI_API_KEY"}
+        with self.assertRaises(dashboard.DashboardConfigError):
+            dashboard.validate_managed_env_policy(incomplete_env)
 
     def test_environment_binds_only_to_protected_gateway(self) -> None:
         env = dashboard.build_dashboard_environment("https://gateway.example", self.env)

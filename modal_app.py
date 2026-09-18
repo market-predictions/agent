@@ -114,6 +114,10 @@ dashboard_image = (
         "runtime/hermes-managed-config.json",
         f"{HERMES_MANAGED_DIR}/config.yaml",
     )
+    .add_local_file(
+        "runtime/hermes-managed.env",
+        f"{HERMES_MANAGED_DIR}/.env",
+    )
 )
 
 
@@ -221,13 +225,14 @@ def _start_dashboard_volume_committer(interval_seconds: int = 30) -> None:
     commit interval; the dashboard remains the sole owner of its session/memory
     state and Control never reads or writes it.
     """
+    stop = threading.Event()
+
     def commit_loop() -> None:
-        while True:
+        while not stop.wait(interval_seconds):
             try:
                 dashboard_state.commit()
             except Exception as exc:  # keep serving; next interval retries
                 print(f"dashboard state commit failed: {type(exc).__name__}", flush=True)
-            threading.Event().wait(interval_seconds)
 
     threading.Thread(
         target=commit_loop,

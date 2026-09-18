@@ -1,68 +1,54 @@
-# Agent Operations — Phase 1
+# Agent Framework Operations
 
-**Scope:** operate the proven bounded Hermes -> FreeLLMAPI carrier and explicitly promote the same pinned code to Modal.  
-**Control:** frozen; these operations do not modify Control.  
-**Data lane:** `PUBLIC_NON_PERSONAL` only.
+**Scope:** bounded worker plus the governed GAP-05 interactive-dashboard candidate.  
+**Canonical Mission:** `AGENT_FRAMEWORK` / `2026-09-10-r2`.  
+**Data lane:** generic free-provider work remains `PUBLIC_NON_PERSONAL` only.
 
-## 1. Current operational fact
-
-The carrier is proven in two environments:
+## 1. Operational topology
 
 ```text
-clean GitHub-hosted runner
-  -> pinned Hermes 0.21.1
-  -> named FreeLLMAPI provider
-  -> pinned FreeLLMAPI 0.9.8
-  -> real free routed model
-  -> Hermes live web tool
-  -> strict CANDIDATE
+bounded task path
+  -> pinned Hermes worker
+  -> protected FreeLLMAPI
+  -> free-provider pool
+  -> CANDIDATE
 
-explicit Modal promotion
-  -> protected FreeLLMAPI web service
-  -> bounded Hermes Function
-  -> real remote smoke
-  -> strict CANDIDATE
+interactive user path (GAP-05 candidate)
+  -> native Hermes Web Dashboard
+  -> native OAuth gate
+  -> GitHub-managed Hermes policy
+  -> protected FreeLLMAPI
+  -> free-provider pool
 ```
 
-Modal is the selected cloud deployment target. Cloud deployment is a promotion of the proven carrier, not a substitute for proving the code works.
+The paths share Hermes and FreeLLMAPI but not authority/state. Interactive session/memory state is not Control state or target-project business truth.
 
-## 2. Git-owned runtime identity
+## 2. Runtime identity
 
-`runtime_versions.py` is the single current source for:
+`runtime_versions.py` is the single source for correctness-relevant pins and Modal object names, including:
 
 - Modal SDK `1.5.5`;
-- Hermes `0.21.1` at exact commit `2237be355906fbe6065ce1815711eee52b2d646e`;
-- FreeLLMAPI `0.9.8` at the exact GHCR image digest;
-- stable Modal app/Secret names.
+- Hermes `0.21.1`, exact commit `2237be355906fbe6065ce1815711eee52b2d646e`;
+- FreeLLMAPI `0.9.8`, exact image digest;
+- Node `22.22.0`, exact Linux-x64 archive checksum for the native Hermes frontend build;
+- Modal app, Secret and dashboard Volume names.
 
-The default FreeLLMAPI declarative bootstrap in `runtime/freellmapi.default.json` enables current keyless `kilo` and `ovh`; therefore **no provider API key is required for the first model run**.
+Do not duplicate these pins elsewhere.
 
-Do not duplicate these pins in another current config file.
+## 3. GitHub → Modal credential
 
-## 3. GitHub -> Modal deployment credential
-
-GitHub Actions authenticates to the Modal workspace with exactly two repository Secrets:
+GitHub Actions uses encrypted repository Secrets:
 
 ```text
 MODAL_TOKEN_ID
 MODAL_TOKEN_SECRET
 ```
 
-They are account-owned credentials and must never be committed, echoed, copied into runtime config, or placed in ordinary GitHub Variables. The repository only consumes them through Actions Secrets.
+Never commit, echo or paste them. They authenticate deployment only; they are not exposed to Hermes.
 
-The current GitHub/Modal binding has been verified by a successful authenticated deployment. Rotation is performed in Modal and then by replacing the two GitHub repository Secret values; no code change is required.
+## 4. Existing runtime-secret bootstrap
 
-## 4. Runtime credentials are bootstrapped, not hand-copied
-
-`scripts/bootstrap_modal_runtime.py` is the canonical first-deploy bootstrap. It runs after Modal authentication and before deployment.
-
-When neither named runtime Secret exists, it generates in-process:
-
-- one stable `FREELLMAPI_API_KEY`;
-- one 64-hex `ENCRYPTION_KEY`;
-- one Modal proxy token protecting the FreeLLMAPI web endpoint.
-
-It then creates:
+`scripts/bootstrap_modal_runtime.py` remains the canonical bootstrap for the bounded carrier and FreeLLMAPI. It creates/preserves:
 
 ### `agent-hermes`
 
@@ -78,99 +64,137 @@ MODAL_PROXY_SECRET
 ENCRYPTION_KEY
 ```
 
-Secret values are not printed. If both named Secrets already exist, bootstrap is a no-op and preserves them. If exactly one exists, bootstrap fails closed rather than guessing or silently creating a mixed credential state. If creation fails mid-flight, newly created bootstrap material is rolled back.
+It is idempotent, hides generated values and fails closed on partial state.
 
-Do not manually create a second parallel credential path unless recovery from a specific failure requires it.
+## 5. Dashboard OAuth prerequisite
 
-## 5. Promote to Modal
+The public Modal dashboard uses the native pinned Hermes Nous Portal OAuth provider. Before the **first user-facing dashboard deployment**, provision a separate Modal Secret:
 
-The canonical cloud promotion workflow is:
+```text
+name: agent-hermes-dashboard
+HERMES_DASHBOARD_OAUTH_CLIENT_ID=agent:{instance_id}
+```
+
+This value is provisioned externally through the Hermes/Nous OAuth registration flow. Repository code deliberately does not invent or persist it.
+
+If the Secret/key is absent or malformed, the dashboard must not start.
+
+Do not substitute native basic-auth for the direct internet-facing Modal endpoint merely to bypass this prerequisite.
+
+## 6. Managed interactive policy
+
+The dashboard image installs:
+
+```text
+/etc/hermes/config.yaml <- runtime/hermes-managed-config.json
+/etc/hermes/.env        <- runtime/hermes-managed.env
+```
+
+These use Hermes' native managed scope.
+
+Pinned effective policy:
+
+- provider `freellmapi` only;
+- model `auto`;
+- toolsets `web`, `memory`, `session_search`;
+- approvals `manual`;
+- SQLite journal mode `delete`.
+
+The managed `.env` pins direct-provider credential names with empty values. This blocks the native Hermes env writer from persisting those keys; it does **not** store secrets in Git.
+
+## 7. Interactive state
+
+Dedicated Modal Volume:
+
+```text
+agent-hermes-dashboard-state -> /root/.hermes
+```
+
+Operational rules:
+
+- at most one dashboard container;
+- no competing interactive-state writer;
+- Volume commit interval 30 seconds;
+- normal cold-restart state-loss bound is the latest uncommitted interval;
+- the Volume is not inspected/mutated by Control;
+- never place target-project canonical data or production credentials in it.
+
+## 8. Verification before enablement
+
+GAP-05 remains non-user-facing until all are true:
+
+1. exact candidate head/base is frozen;
+2. both Agent CI jobs pass on that exact head;
+3. fresh external exact-candidate review passes;
+4. OAuth client id is provisioned;
+5. explicit Modal deployment/mobile proof succeeds.
+
+Source merge and runtime deployment are separate operations. Ordinary pushes do not deploy.
+
+## 9. Canonical deployment
+
+Single path:
 
 ```text
 .github/workflows/deploy-modal.yml
 ```
 
-It is **workflow-dispatch only**. A deployment therefore happens only when deliberately requested; ordinary source pushes do not deploy or spend Modal compute.
+It remains workflow-dispatch only. For the bounded carrier, `run_smoke=true` executes a real remote Hermes → FreeLLMAPI smoke.
 
-With `run_smoke=true` it performs:
+After GAP-05 external review has passed and the OAuth Secret exists, deploy the same `modal_app.py`. The new dashboard endpoint is part of that one topology; do not create a second deployment workflow.
 
-1. checkout with no persisted GitHub credential;
-2. installation of the pinned Modal CLI;
-3. fail-closed verification of the Modal account token;
-4. idempotent runtime-Secret bootstrap;
-5. `modal deploy modal_app.py`;
-6. one real remote Hermes -> FreeLLMAPI smoke.
-
-Manual equivalent from an authenticated machine:
+Manual equivalent from an authenticated operator environment:
 
 ```bash
 python -m pip install -r requirements.txt
 python -m scripts.bootstrap_modal_runtime
 modal deploy modal_app.py
-modal run modal_app.py::smoke
 ```
 
-The first live deployment and smoke have already succeeded. Repeat deployment only for an intentional promotion or operational verification; do not use redeployment as routine polling.
+Do not perform this user-facing dashboard promotion before the external-review gate.
 
-## 6. Remote smoke success criterion
+## 10. Post-deploy GAP-05 proof
 
-The smoke passes only when the remote chain returns a structured `CANDIDATE`:
+From a phone/mobile browser and an unauthenticated browser session verify:
 
-```text
-Modal Hermes Function
-  -> protected FreeLLMAPI Modal service
-  -> eligible free provider/model
-  -> Hermes live web lookup
-  -> structured CANDIDATE
-```
+1. unauthenticated access is gated and cannot enter dashboard APIs/WebSockets;
+2. the owner OAuth login succeeds;
+3. Hermes `/api/status` reports authentication required with the expected provider;
+4. a public/non-personal chat turn succeeds through FreeLLMAPI;
+5. direct-provider API-key persistence is rejected;
+6. managed provider/model/tool changes are ineffective/rejected;
+7. a session is visible after a normal dashboard container recycle within the documented persistence semantics;
+8. no Control/project production action is available from the interactive toolset.
 
-Do not call this `RESULT_READY`; independent evidence verification is Phase 2.
+Preserve only non-secret evidence needed for external review/acceptance.
 
-## 7. Failure semantics
+## 11. Failure semantics
 
 Fail closed on:
 
-- missing/invalid Modal account deployment credentials;
-- partial named Modal runtime-Secret state;
-- invalid FreeLLMAPI unified key;
-- FreeLLMAPI health/auth failure;
-- no eligible model/provider;
-- Hermes wall-time/iteration exhaustion;
-- invalid/non-structured Hermes result;
-- Hermes usage exceeding the configured model-call budget;
-- any task outside `PUBLIC_NON_PERSONAL` in this generic free lane.
+- missing/invalid Modal deployment credentials;
+- partial bounded-runtime Secret state;
+- invalid FreeLLMAPI auth/health;
+- no eligible free model route;
+- missing/malformed dashboard OAuth client id;
+- managed-policy or managed-env drift;
+- direct upstream provider credential in the dashboard process environment;
+- invalid/non-structured bounded-worker result;
+- budget exhaustion;
+- disallowed data or requested authority.
 
-There is no paid fallback, direct-provider bypass, project-write fallback, second runtime, queue, or shadow scheduler.
+There is no paid fallback, direct-provider bypass, production-write fallback, second runtime, framework queue or shadow scheduler.
 
-## 8. Recovery and rotation
-
-If the GitHub deployment token is rotated, replace `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` in GitHub Actions Secrets and rerun an explicit deployment.
-
-If a named Modal runtime Secret must be rotated, treat the pair as one deliberate credential boundary. Do not delete only one and rely on bootstrap to repair it: partial state intentionally fails closed. Either replace values through Modal's normal Secret management or remove/recreate the complete runtime Secret pair in one controlled maintenance action, then rerun deployment and smoke.
-
-Do not log or paste credential values into issues, PR comments, Actions output, or chat.
-
-## 9. Verification commands without Modal
-
-The canonical repository verification is GitHub Actions. For local deterministic checks:
+## 12. Local/CI verification
 
 ```bash
 python -m pip install -r requirements.txt
 python -m unittest discover -s tests -v
-python -m compileall -q agent_carrier.py modal_app.py runtime_versions.py scripts tests
+python -m compileall -q agent_carrier.py agent_budget_plugin.py interactive_dashboard.py modal_app.py runtime_versions.py scripts tests
 ```
 
-The real free-model/Hermes integration logic is kept in `scripts/ci_runtime_probe.sh` and is run by `.github/workflows/ci.yml` from a clean GitHub-hosted environment.
+`.github/workflows/ci.yml` additionally installs the exact pinned upstream Hermes commit, proves the native dashboard command and managed-scope behavior, pulls the exact FreeLLMAPI image and runs the existing real Hermes/FreeLLMAPI tool-path probe.
 
-## 10. Later phases, not current operations
+## 13. Next governed capability
 
-Not part of the first operational carrier:
-
-- trusted evidence verifier / `RESULT_READY`;
-- multi-worker fan-out;
-- persistent FreeLLMAPI state;
-- Modal Sandbox execution;
-- project writes/publisher;
-- mobile/interactive Hermes.
-
-Those capabilities are added only when the canonical roadmap's evidence trigger is met.
+After GAP-05 is accepted, Mission r2 makes `AGENT-R1-GAP-02` (independent trusted evidence verifier) the next eligible gap. Do not start it under A8 authority.

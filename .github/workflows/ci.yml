@@ -25,7 +25,7 @@ jobs:
       - name: Install pinned deployment tooling
         run: python -m pip install --disable-pip-version-check -r requirements.txt
       - name: Compile Python
-        run: python -m compileall -q agent_carrier.py agent_budget_plugin.py modal_app.py runtime_versions.py scripts tests
+        run: python -m compileall -q agent_carrier.py agent_budget_plugin.py interactive_dashboard.py modal_app.py runtime_versions.py scripts tests
       - name: Run deterministic tests
         run: python -m unittest discover -s tests -v
       - name: Import Modal app without deployment credentials
@@ -79,6 +79,37 @@ jobs:
             'firecrawl-py==4.17.0' \
             'parallel-web==0.4.2'
           hermes --version
+      - name: Prove pinned native dashboard and managed-scope enforcement
+        run: |
+          set -euo pipefail
+          hermes dashboard --help >/tmp/hermes-dashboard-help.txt
+          grep -q -- '--host' /tmp/hermes-dashboard-help.txt
+          grep -q -- '--no-open' /tmp/hermes-dashboard-help.txt
+          python - <<'PY'
+          import json
+          import os
+          import tempfile
+          from pathlib import Path
+
+          from hermes_cli import managed_scope
+
+          with tempfile.TemporaryDirectory() as tmp:
+              managed = Path(tmp)
+              (managed / 'config.yaml').write_text(
+                  json.dumps({'model': {'provider': 'freellmapi'}, 'platform_toolsets': {'cli': ['web']}}),
+                  encoding='utf-8',
+              )
+              (managed / '.env').write_text('OPENAI_API_KEY=\n', encoding='utf-8')
+              os.environ['HERMES_MANAGED_DIR'] = tmp
+              managed_scope.invalidate_managed_cache()
+              assert managed_scope.is_key_managed('model.provider')
+              assert managed_scope.is_env_managed('OPENAI_API_KEY')
+              merged = managed_scope.apply_managed_overlay(
+                  {'model': {'provider': 'openai'}, 'platform_toolsets': {'cli': ['terminal']}}
+              )
+              assert merged['model']['provider'] == 'freellmapi'
+              assert merged['platform_toolsets']['cli'] == ['web']
+          PY
       - name: Pull exact FreeLLMAPI image digest
         run: |
           IMAGE="$(python -c 'import runtime_versions; print(runtime_versions.FREELLMAPI_IMAGE)')"

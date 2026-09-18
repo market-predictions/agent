@@ -1,6 +1,6 @@
 """Fail-closed contract for the AGENT-R1-GAP-05 interactive Hermes dashboard.
 
-The dashboard is the pinned native Hermes UI.  This module only binds that UI
+The dashboard is the pinned native Hermes UI. This module only binds that UI
 to the already-protected FreeLLMAPI service and validates the immutable managed
 policy shipped by this repository; it is intentionally not a second agent
 runtime, auth service, task queue, or project authority plane.
@@ -20,11 +20,13 @@ from runtime_versions import (
 )
 
 SAFE_INTERACTIVE_TOOLSETS = ("web", "memory", "session_search")
-MANAGED_POLICY_PATH = Path(__file__).parent / "runtime" / "hermes-managed-config.json"
+_RUNTIME_DIR = Path(__file__).parent / "runtime"
+MANAGED_POLICY_PATH = _RUNTIME_DIR / "hermes-managed-config.json"
+MANAGED_ENV_PATH = _RUNTIME_DIR / "hermes-managed.env"
 
 # A dashboard worker receives only the FreeLLMAPI client credential, Modal proxy
-# credential and dashboard OAuth client id.  Refuse a deployment environment in
-# which common upstream-provider secrets have accidentally leaked into Hermes.
+# credential and dashboard OAuth client id. The same names are pinned empty in
+# the Hermes managed .env so the native API-Keys UI cannot persist them later.
 DIRECT_PROVIDER_SECRET_NAMES = frozenset(
     {
         "ANTHROPIC_API_KEY",
@@ -74,6 +76,25 @@ def load_managed_policy(path: Path = MANAGED_POLICY_PATH) -> dict:
     return value
 
 
+def load_managed_env_names(path: Path = MANAGED_ENV_PATH) -> set[str]:
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        raise DashboardConfigError("managed dashboard env policy is unreadable") from exc
+    names: set[str] = set()
+    for raw in lines:
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            raise DashboardConfigError("managed dashboard env policy contains an invalid line")
+        name, value = line.split("=", 1)
+        if not name.strip() or value.strip():
+            raise DashboardConfigError("managed direct-provider env pins must have empty values")
+        names.add(name.strip())
+    return names
+
+
 def validate_managed_policy(policy: dict) -> dict:
     """Validate the repository-owned effective interactive policy exactly."""
     if set(policy) != {"database", "model", "providers", "platform_toolsets", "approvals"}:
@@ -116,6 +137,12 @@ def validate_managed_policy(policy: dict) -> dict:
     return policy
 
 
+def validate_managed_env_policy(names: set[str]) -> set[str]:
+    if names != set(DIRECT_PROVIDER_SECRET_NAMES):
+        raise DashboardConfigError("managed env deny surface must exactly cover direct provider secrets")
+    return names
+
+
 def build_dashboard_environment(gateway_root: str, source_env: dict[str, str] | None = None) -> dict[str, str]:
     """Return the native-dashboard environment after strict authority checks."""
     source = dict(os.environ if source_env is None else source_env)
@@ -138,6 +165,7 @@ def build_dashboard_environment(gateway_root: str, source_env: dict[str, str] | 
         )
 
     validate_managed_policy(load_managed_policy())
+    validate_managed_env_policy(load_managed_env_names())
     root = _absolute_http_url(gateway_root, label="FreeLLMAPI gateway root")
     source["FREELLMAPI_BASE_URL"] = f"{root}/v1"
     source["HERMES_HOME"] = HERMES_DASHBOARD_HOME

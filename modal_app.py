@@ -95,6 +95,8 @@ hermes_image = (
 
 # The dashboard is not a fork: it is the exact pinned Hermes source already used
 # by the worker, with its native web assets built from the upstream lockfile.
+# The host policy is installed into Hermes' supported bundled-plugin directory,
+# so the same policy remains available when the native UI switches profiles.
 # Node is exact-pinned and checksum-verified because it enters the executable
 # build chain.
 dashboard_image = (
@@ -108,11 +110,20 @@ dashboard_image = (
         f"cd {HERMES_SOURCE_DIR} && npm ci",
         f"cd {HERMES_SOURCE_DIR} && npm run build --workspace web",
         f"mkdir -p {HERMES_MANAGED_DIR}",
+        f"mkdir -p {HERMES_SOURCE_DIR}/plugins/agent-host-policy",
     )
     .add_local_python_source("interactive_dashboard")
     .add_local_file(
         "runtime/hermes-managed-config.json",
         f"{HERMES_MANAGED_DIR}/config.yaml",
+    )
+    .add_local_file(
+        "runtime/hermes_host_policy/plugin.yaml",
+        f"{HERMES_SOURCE_DIR}/plugins/agent-host-policy/plugin.yaml",
+    )
+    .add_local_file(
+        "runtime/hermes_host_policy/__init__.py",
+        f"{HERMES_SOURCE_DIR}/plugins/agent-host-policy/__init__.py",
     )
 )
 
@@ -254,7 +265,7 @@ def _start_dashboard_volume_committer(interval_seconds: int = 30) -> None:
     startup_timeout=180,
 )
 def hermes_dashboard() -> None:
-    """Start the native Hermes dashboard behind the bounded hosted policy."""
+    """Start the exact native Hermes dashboard behind the hosted policy plugin."""
     import interactive_dashboard
 
     gateway_root = freellmapi.get_web_url()

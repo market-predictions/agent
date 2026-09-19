@@ -22,6 +22,8 @@
       }
     }
   },
+  "fallback_providers": [],
+  "fallback_model": [],
   "platform_toolsets": {
     "cli": [
       "web",
@@ -31,5 +33,11 @@
   },
   "approvals": {
     "mode": "manual"
+  },
+  "plugins": {
+    "enabled": [
+      "agent-host-policy"
+    ],
+    "hook_callback_timeout": 5
   }
 }

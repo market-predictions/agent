@@ -3,7 +3,7 @@
 **Repository:** `market-predictions/agent`  
 **Version:** 0.5 candidate — bounded carrier + native interactive Hermes  
 **Canonical Mission:** `AGENT_FRAMEWORK` / `2026-09-10-r2`  
-**Date:** 2026-09-18  
+**Date:** 2026-09-19  
 **Canonical:** yes — this document is the current project architecture truth.
 
 ## 1. Purpose
@@ -24,6 +24,7 @@ INTERACTIVE USER
 phone/browser
   -> native pinned Hermes Web Dashboard
   -> native OAuth gate
+  -> small host-owned policy fence
   -> GitHub-managed Hermes policy
   -> protected FreeLLMAPI
   -> configured free-provider pool
@@ -104,33 +105,56 @@ The human-facing layer is the **exact native Hermes Web Dashboard**:
 HTTPS Modal endpoint
   -> Hermes non-loopback auth gate
   -> Nous Portal OAuth
+  -> hosted route/capability fence
   -> native dashboard / PTY / TUI
   -> managed effective policy
   -> protected FreeLLMAPI
 ```
 
-No custom reverse proxy, auth server, frontend fork or second agent runtime is introduced.
+No reverse proxy, custom auth server, frontend fork or second agent runtime is introduced. `interactive_dashboard.py` wraps the exact native app only long enough to apply the hosted Mission policy and then calls Hermes' own server.
 
-### Effective policy
+### Effective managed policy
 
-The dashboard image installs repository-owned policy into the native Hermes managed scope:
+The dashboard image installs repository-owned config at:
 
 ```text
 /etc/hermes/config.yaml
+```
+
+At startup, the host wrapper derives every upstream provider credential env name from the **exact pinned Hermes `provider_catalog()`** and materializes those names empty at:
+
+```text
 /etc/hermes/.env
 ```
 
-Managed config wins over user/profile config and its managed keys cannot be changed through normal Hermes config writers.
+This removes the previous duplicate provider-key inventory from this repository. Hermes itself remains the one credential-name source for the pinned runtime.
 
 Pinned interactive capability:
 
-- provider: `freellmapi` only;
+- provider: `freellmapi`;
 - model route: `auto`;
 - tools: `web`, `memory`, `session_search`;
 - approvals: `manual`;
 - SQLite journal mode: `delete`.
 
-Direct-provider credential names are pinned as **empty managed env names**. This uses Hermes' native write guard to prevent the API-Keys UI from persisting direct OpenAI/Anthropic/etc. keys while storing no secret values in Git. Startup also rejects a dashboard process that already contains a direct-provider credential.
+Startup rejects any direct upstream provider credential already present in the dashboard process environment.
+
+### Hosted administration fence
+
+Hermes' native dashboard has broader self-hosted administration surfaces than this Mission authorizes. Before the native server starts, the wrapper removes mutation routes under:
+
+```text
+/api/config
+/api/env
+/api/providers
+/api/mcp
+/api/dashboard/plugins
+/api/cron
+```
+
+Read-only/status paths remain where Hermes exposes them. The separate `/api/console` WebSocket is removed because it can dispatch mutating Hermes administration commands.
+
+The normal `/api/pty` chat remains native. Its child environment inherits `HERMES_GATEWAY_SESSION=1`; on the exact pinned Hermes version that makes `bang_shell_enabled()` false, closing the direct local `!command` shell shortcut without changing Hermes source.
 
 ### Authentication
 
@@ -140,7 +164,7 @@ The public Modal URL requires a valid externally provisioned:
 HERMES_DASHBOARD_OAUTH_CLIENT_ID=agent:{instance_id}
 ```
 
-held in Modal Secret `agent-hermes-dashboard`. Absence/malformed identity fails closed. The public endpoint does not downgrade to unauthenticated or native basic-auth operation.
+held in Modal Secret `agent-hermes-dashboard`. Absence/malformed identity fails closed. Hermes' own non-loopback auth gate remains authoritative; the public endpoint does not downgrade to unauthenticated operation.
 
 ### Interactive state
 
@@ -150,7 +174,7 @@ Hermes home is mounted from one dedicated Modal Volume:
 agent-hermes-dashboard-state -> /root/.hermes
 ```
 
-Only one dashboard container may run. The Volume is committed every 30 seconds and stores interactive Hermes session/memory state only. Control and target projects do not use it as canonical state.
+Only one dashboard container may run. The Volume is committed every 30 seconds and stores interactive Hermes session/memory state only. Control and target projects do not use it as canonical state. This is the sole persistence primitive added by GAP-05.
 
 ## 7. Authority separation
 
@@ -175,7 +199,7 @@ Current Modal topology is one app containing:
 - protected FreeLLMAPI web service;
 - bounded Hermes worker Function;
 - GAP-05 native Hermes dashboard web service candidate;
-- dedicated dashboard state Volume.
+- exactly one dedicated dashboard state Volume.
 
 Ordinary pushes do not deploy. A source merge is therefore not user-facing enablement.
 
@@ -187,12 +211,15 @@ Candidate CI contains:
 
 1. deterministic compile/tests/topology contracts;
 2. exact pinned Hermes installation;
-3. native dashboard command proof;
-4. native managed-scope config and env immutability proof;
-5. exact FreeLLMAPI image pull;
-6. existing real Hermes → FreeLLMAPI → free model → web-tool probe.
+3. exact pinned provider-catalog-to-managed-env equality proof;
+4. native managed-scope provider/tool immutability proof;
+5. native non-loopback auth-gate proof;
+6. native PTY environment inheritance + `bang_shell_enabled() == false` proof;
+7. exact route-fence proof for config/env/provider/MCP/plugin/cron mutations and `/api/console`;
+8. exact FreeLLMAPI image pull;
+9. existing real Hermes → FreeLLMAPI → free model → web-tool probe.
 
-GAP-05 security tests explicitly cover missing/malformed auth, direct-provider secret leakage, managed-policy drift and safe capability bounds. Live mobile/session-persistence evidence is an enablement gate after external exact-candidate review and OAuth provisioning.
+Live mobile/session-persistence evidence remains an enablement gate after external exact-candidate review and OAuth provisioning.
 
 ## 10. Current Mission sequence
 

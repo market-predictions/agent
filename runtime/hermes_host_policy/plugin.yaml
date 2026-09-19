@@ -1,0 +1,5 @@
+name: agent-host-policy
+version: "1.0.0"
+description: "Fail-closed hosted policy for the Agent GAP-05 native Hermes dashboard"
+hooks:
+  - pre_tool_call

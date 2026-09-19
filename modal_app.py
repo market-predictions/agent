@@ -114,10 +114,6 @@ dashboard_image = (
         "runtime/hermes-managed-config.json",
         f"{HERMES_MANAGED_DIR}/config.yaml",
     )
-    .add_local_file(
-        "runtime/hermes-managed.env",
-        f"{HERMES_MANAGED_DIR}/.env",
-    )
 )
 
 
@@ -258,7 +254,7 @@ def _start_dashboard_volume_committer(interval_seconds: int = 30) -> None:
     startup_timeout=180,
 )
 def hermes_dashboard() -> None:
-    """Start the exact native Hermes dashboard behind Hermes' OAuth gate."""
+    """Start the native Hermes dashboard behind the bounded hosted policy."""
     import interactive_dashboard
 
     gateway_root = freellmapi.get_web_url()
@@ -267,7 +263,13 @@ def hermes_dashboard() -> None:
     gateway_root = gateway_root.rstrip("/")
     _probe_gateway(gateway_root)
 
-    env = interactive_dashboard.build_dashboard_environment(gateway_root, os.environ)
+    direct_secrets = interactive_dashboard.provider_secret_names()
+    env = interactive_dashboard.build_dashboard_environment(
+        gateway_root,
+        os.environ,
+        direct_provider_secret_names=direct_secrets,
+    )
+    interactive_dashboard.materialize_managed_env_policy(direct_secrets)
     os.makedirs(HERMES_DASHBOARD_HOME, exist_ok=True)
     _start_dashboard_volume_committer()
     subprocess.Popen(

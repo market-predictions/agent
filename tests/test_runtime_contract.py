@@ -35,7 +35,10 @@ class RuntimeContractTests(unittest.TestCase):
         self.assertIn("FREELLMAPI_IMAGE", source)
         self.assertIn("agent-freellmapi-default.json", source)
         self.assertIn('"agent_carrier", "agent_budget_plugin", "runtime_versions"', source)
-        self.assertNotIn("modal.Volume", source)
+        # GAP-05 adds exactly one persistence primitive for native Hermes
+        # interactive session/memory state. It is not a framework queue/DB.
+        self.assertEqual(source.count("modal.Volume.from_name("), 1)
+        self.assertIn("MODAL_HERMES_DASHBOARD_VOLUME", source)
         self.assertNotIn("modal.Sandbox", source)
         self.assertNotIn("Pydantic", source)
 

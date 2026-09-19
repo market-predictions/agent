@@ -1,16 +1,15 @@
-"""Hosted policy for the native Hermes dashboard used by AGENT-R1-GAP-05.
+"""Hosted configuration boundary for AGENT-R1-GAP-05.
 
-Hermes remains the dashboard/runtime implementation. This module only supplies
-the host-owned policy boundary required by the Mission: protected FreeLLMAPI
-inference, managed safe tools, no direct provider credentials, no local shell
-shortcut, and no browser mutation surface that can widen those capabilities.
+Hermes remains the dashboard/runtime implementation. The host policy itself is
+installed as a supported Hermes plugin; this module validates the repository-
+owned managed policy, strips direct provider credentials, and launches the
+exact native ``hermes dashboard`` entrypoint.
 """
 
 from __future__ import annotations
 
 import json
 import os
-import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -21,23 +20,9 @@ from runtime_versions import (
 )
 
 SAFE_INTERACTIVE_TOOLSETS = ("web", "memory", "session_search")
+HOST_POLICY_PLUGIN_NAME = "agent-host-policy"
 _RUNTIME_DIR = Path(__file__).parent / "runtime"
 MANAGED_POLICY_PATH = _RUNTIME_DIR / "hermes-managed-config.json"
-
-# These are host-management surfaces, not chat/session state. GET/HEAD/OPTIONS
-# remain available where Hermes exposes them; mutating routes are removed from
-# the hosted app before it starts. This keeps the native UI while preventing a
-# browser session from widening provider/tool/scheduler authority.
-BLOCKED_MUTATION_PREFIXES = (
-    "/api/config",
-    "/api/env",
-    "/api/providers",
-    "/api/mcp",
-    "/api/dashboard/plugins",
-    "/api/cron",
-)
-BLOCKED_WEBSOCKET_PATHS = frozenset({"/api/console"})
-_READ_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
 
 class DashboardConfigError(ValueError):
@@ -66,7 +51,17 @@ def load_managed_policy(path: Path = MANAGED_POLICY_PATH) -> dict:
 
 def validate_managed_policy(policy: dict) -> dict:
     """Validate the repository-owned effective interactive policy exactly."""
-    if set(policy) != {"database", "model", "providers", "platform_toolsets", "approvals"}:
+    expected_keys = {
+        "database",
+        "model",
+        "providers",
+        "fallback_providers",
+        "fallback_model",
+        "platform_toolsets",
+        "approvals",
+        "plugins",
+    }
+    if set(policy) != expected_keys:
         raise DashboardConfigError("managed dashboard policy contains unexpected root keys")
 
     if policy.get("database") != {"journal_mode": "delete"}:
@@ -94,10 +89,17 @@ def validate_managed_policy(policy: dict) -> dict:
     if gateway != expected_gateway:
         raise DashboardConfigError("FreeLLMAPI managed provider contract drifted")
 
+    if policy.get("fallback_providers") != [] or policy.get("fallback_model") != []:
+        raise DashboardConfigError("interactive provider fallbacks must remain disabled")
     if policy.get("platform_toolsets") != {"cli": list(SAFE_INTERACTIVE_TOOLSETS)}:
         raise DashboardConfigError("interactive Hermes tool capability is not the bounded safe set")
     if policy.get("approvals") != {"mode": "manual"}:
         raise DashboardConfigError("interactive approval UX must remain manual")
+    if policy.get("plugins") != {
+        "enabled": [HOST_POLICY_PLUGIN_NAME],
+        "hook_callback_timeout": 5,
+    }:
+        raise DashboardConfigError("hosted Hermes policy plugin must be the only enabled plugin")
     return policy
 
 
@@ -178,64 +180,21 @@ def build_dashboard_environment(
     source["FREELLMAPI_BASE_URL"] = f"{root}/v1"
     source["HERMES_HOME"] = HERMES_DASHBOARD_HOME
     source["HERMES_MANAGED_DIR"] = HERMES_MANAGED_DIR
-    # The pinned Hermes bang-shell implementation is disabled for gateway or
-    # platform sessions. The dashboard PTY inherits this process environment,
-    # closing the direct `!command` local-shell shortcut without a Hermes fork.
+    # Pinned Hermes disables !command in gateway/platform sessions. The native
+    # dashboard PTY inherits this process environment, so no local-shell
+    # shortcut is available without patching Hermes core.
     source["HERMES_GATEWAY_SESSION"] = "1"
     return source
 
 
-def _path_has_prefix(path: str, prefix: str) -> bool:
-    return path == prefix or path.startswith(prefix + "/")
-
-
-def is_blocked_mutation(path: str, methods: set[str] | frozenset[str]) -> bool:
-    normalized_methods = {str(method).upper() for method in methods}
-    if not normalized_methods or normalized_methods <= _READ_METHODS:
-        return False
-    return any(_path_has_prefix(path, prefix) for prefix in BLOCKED_MUTATION_PREFIXES)
-
-
-def install_host_route_policy(app) -> set[tuple[str, str]]:
-    """Remove hosted-only authority bypass routes from the native FastAPI app.
-
-    Returns removed ``(method, path)`` signatures for exact-upstream CI proof.
-    Chat/session/memory routes remain native and untouched.
-    """
-    kept = []
-    removed: set[tuple[str, str]] = set()
-    for route in app.router.routes:
-        path = str(getattr(route, "path", "") or "")
-        methods = {str(method).upper() for method in (getattr(route, "methods", None) or set())}
-        if path in BLOCKED_WEBSOCKET_PATHS:
-            removed.add(("WS", path))
-            continue
-        if is_blocked_mutation(path, methods):
-            removed.update((method, path) for method in methods if method not in _READ_METHODS)
-            continue
-        kept.append(route)
-    app.router.routes[:] = kept
-    return removed
-
-
 def dashboard_command() -> list[str]:
-    """Launch the host wrapper; it serves the exact pinned native Hermes app."""
-    return [sys.executable, "-m", "interactive_dashboard"]
-
-
-def serve_native_dashboard() -> None:
-    """Apply the bounded host policy, then call Hermes' own dashboard server."""
-    from hermes_cli import web_server
-
-    removed = install_host_route_policy(web_server.app)
-    if ("WS", "/api/console") not in removed:
-        raise DashboardConfigError("pinned Hermes console route was not fenced")
-    web_server.start_server(
-        host="0.0.0.0",
-        port=HERMES_DASHBOARD_PORT,
-        open_browser=False,
-    )
-
-
-if __name__ == "__main__":
-    serve_native_dashboard()
+    """Launch Hermes through its normal dashboard bootstrap and auth discovery."""
+    return [
+        "hermes",
+        "dashboard",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        str(HERMES_DASHBOARD_PORT),
+        "--no-open",
+    ]

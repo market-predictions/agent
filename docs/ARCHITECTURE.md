@@ -8,7 +8,7 @@
 
 ## 1. Purpose
 
-`agent` is a reusable carrier for bounded autonomous AI work plus one separate, human-facing Hermes interaction surface.
+`agent` is a reusable carrier for bounded autonomous AI work plus one separate human-facing Hermes interaction surface.
 
 ```text
 BOUNDED WORK
@@ -24,7 +24,7 @@ INTERACTIVE USER
 phone/browser
   -> native pinned Hermes Web Dashboard
   -> native OAuth gate
-  -> small host-owned policy fence
+  -> bundled Agent host-policy plugin
   -> GitHub-managed Hermes policy
   -> protected FreeLLMAPI
   -> configured free-provider pool
@@ -35,11 +35,11 @@ The framework is not a project database, Control replacement, business scheduler
 ## 2. Fixed architecture decisions
 
 1. **Hermes is the only agent runtime.**
-2. **FreeLLMAPI is the only inference gateway.** No direct-provider bypass is authorized.
+2. **FreeLLMAPI is the only inference gateway.** Direct-provider inference is fail-closed.
 3. **Modal is the selected bounded cloud execution target.** It is not a second business/state plane.
 4. **GitHub owns code/config/docs truth.**
 5. **The generic free-provider lane is `PUBLIC_NON_PERSONAL`.**
-6. **Generation and verification are separate authorities.** Worker output is `CANDIDATE`; only the later trusted verifier may introduce `RESULT_READY`.
+6. **Generation and verification are separate authorities.** Worker output is `CANDIDATE`; only a later trusted verifier may introduce `RESULT_READY`.
 7. **Interactive Hermes is separate user state.** It cannot become Control runtime state, framework task truth or target-project canonical business data.
 8. **Complexity is earned.** No second runtime, framework DB/queue, recursive swarm, custom dashboard, custom auth service or production credential bridge exists.
 
@@ -53,7 +53,7 @@ The framework is not a project database, Control replacement, business scheduler
 - Node `22.22.0`, checksum-pinned for the upstream Hermes web build;
 - stable Modal app/Secret/Volume names.
 
-Hermes is installed through the upstream-supported editable source path from the exact commit. The native web frontend is built from the same source checkout and upstream npm lockfile; there is no forked frontend.
+Hermes is installed through the upstream-supported editable source path from the exact commit. The native web frontend is built from the same checkout and upstream npm lockfile. GAP-05 adds one supported bundled Hermes plugin; it does not modify Hermes core or fork the frontend/runtime.
 
 ## 4. Bounded worker plane — integrated GAP-01
 
@@ -93,9 +93,7 @@ FreeLLMAPI holds provider configuration/credentials. Hermes gets only:
 - stable `FREELLMAPI_API_KEY`;
 - Modal proxy client key/secret for the protected FreeLLMAPI endpoint.
 
-The credential-bearing gateway URL is resolved from the deployed Modal Function inside trusted runtime code; callers do not provide it.
-
-FreeLLMAPI bootstrap uses its own exported initialization/settings APIs, not raw DB edits. The current first path can use keyless Kilo/OVH providers. No paid fallback is hidden behind the carrier.
+The gateway URL is resolved from the deployed Modal Function inside trusted runtime code; callers do not provide it. FreeLLMAPI bootstrap uses its own exported initialization/settings APIs, not raw DB edits. No paid fallback is hidden behind the carrier.
 
 ## 6. Interactive Hermes plane — GAP-05 candidate
 
@@ -103,78 +101,65 @@ The human-facing layer is the **exact native Hermes Web Dashboard**:
 
 ```text
 HTTPS Modal endpoint
-  -> Hermes non-loopback auth gate
-  -> Nous Portal OAuth
-  -> hosted route/capability fence
+  -> Hermes non-loopback OAuth gate
   -> native dashboard / PTY / TUI
+  -> bundled agent-host-policy plugin
   -> managed effective policy
   -> protected FreeLLMAPI
 ```
 
-No reverse proxy, custom auth server, frontend fork or second agent runtime is introduced. `interactive_dashboard.py` wraps the exact native app only long enough to apply the hosted Mission policy and then calls Hermes' own server.
+The server starts through Hermes' normal `hermes dashboard` CLI bootstrap. This preserves upstream plugin discovery and dashboard-auth registration. There is no reverse proxy, custom auth server, frontend fork or second agent runtime.
 
-### Effective managed policy
+### Managed policy
 
-The dashboard image installs repository-owned config at:
+The dashboard image installs repository-owned config at `/etc/hermes/config.yaml`. It pins:
 
-```text
-/etc/hermes/config.yaml
-```
+- provider `freellmapi`;
+- model `auto`;
+- both Hermes fallback lists empty;
+- toolsets `web`, `memory`, `session_search`;
+- approval mode `manual`;
+- only `agent-host-policy` enabled as a general plugin;
+- plugin callback timeout `5` seconds;
+- SQLite journal mode `delete`.
 
-At startup, the host wrapper derives every upstream provider credential env name from the **exact pinned Hermes `provider_catalog()`** and materializes those names empty at:
+At startup `interactive_dashboard.py` derives every upstream provider credential env name from the exact pinned Hermes `provider_catalog()` and materializes those names empty in `/etc/hermes/.env`. Startup rejects any direct upstream provider credential already present in the dashboard process environment.
 
-```text
-/etc/hermes/.env
-```
+### Execution fences
 
-This removes the previous duplicate provider-key inventory from this repository. Hermes itself remains the one credential-name source for the pinned runtime.
+Managed config is reinforced at the actual native execution boundaries:
 
-Pinned interactive capability:
+- Hermes `llm_execution` middleware invokes downstream provider I/O only for `freellmapi` + `auto` + the protected `FREELLMAPI_BASE_URL`. A session-scoped model/provider switch cannot escape this boundary.
+- Hermes `pre_tool_call` resolves the exact pinned `web`, `memory`, `session_search` toolsets and blocks every other tool fail-closed. The current allowed tool names are `web_search`, `web_extract`, `memory`, `session_search`.
+- Both provider fallback lists are managed empty, so an inference failure cannot fall through to another provider.
 
-- provider: `freellmapi`;
-- model route: `auto`;
-- tools: `web`, `memory`, `session_search`;
-- approvals: `manual`;
-- SQLite journal mode: `delete`.
+### Browser/PTY fence
 
-Startup rejects any direct upstream provider credential already present in the dashboard process environment.
+One pure ASGI middleware surrounds the native dashboard app. It keeps read/status behavior native and default-denies non-read HTTP methods except auth lifecycle, native session lifecycle and chat-image upload.
 
-### Hosted administration fence
+It additionally:
 
-Hermes' native dashboard has broader self-hosted administration surfaces than this Mission authorizes. Before the native server starts, the wrapper removes mutation routes under:
+- denies `/api/console`;
+- requires the native keep-alive `attach` token for `/api/pty`, eliminating Hermes' legacy registry-bypass PTY path;
+- caps Hermes' pinned native PTY registry at one session;
+- keeps normal managed PTY chat native;
+- relies on inherited `HERMES_GATEWAY_SESSION=1`, for which exact pinned Hermes reports `bang_shell_enabled() == false`.
 
-```text
-/api/config
-/api/env
-/api/providers
-/api/mcp
-/api/dashboard/plugins
-/api/cron
-```
-
-Read-only/status paths remain where Hermes exposes them. The separate `/api/console` WebSocket is removed because it can dispatch mutating Hermes administration commands.
-
-The normal `/api/pty` chat remains native. Its child environment inherits `HERMES_GATEWAY_SESSION=1`; on the exact pinned Hermes version that makes `bang_shell_enabled()` false, closing the direct local `!command` shell shortcut without changing Hermes source.
+This provides one-user interactive concurrency without introducing a queue, lock service or custom session manager.
 
 ### Authentication
 
-The public Modal URL requires a valid externally provisioned:
-
-```text
-HERMES_DASHBOARD_OAUTH_CLIENT_ID=agent:{instance_id}
-```
-
-held in Modal Secret `agent-hermes-dashboard`. Absence/malformed identity fails closed. Hermes' own non-loopback auth gate remains authoritative; the public endpoint does not downgrade to unauthenticated operation.
+The public Modal URL requires externally provisioned `HERMES_DASHBOARD_OAUTH_CLIENT_ID=agent:{instance_id}` in Modal Secret `agent-hermes-dashboard`. Hermes' own non-loopback auth gate remains authoritative because the standard dashboard startup path is preserved.
 
 ### Interactive state
 
-Hermes home is mounted from one dedicated Modal Volume:
+Hermes home is mounted from dedicated Modal Volume:
 
 ```text
 agent-hermes-dashboard-state -> /root/.hermes
 ```
 
-Only one dashboard container may run. The Volume is committed every 30 seconds and stores interactive Hermes session/memory state only. Control and target projects do not use it as canonical state. This is the sole persistence primitive added by GAP-05.
+Only one dashboard container may run. The Volume is committed every 30 seconds and stores interactive Hermes session/memory state only. Control and target projects do not use it as canonical state. The host-policy plugin is bundled in the pinned Hermes image, while its enablement is managed globally, so profile selection cannot remove the execution fences.
 
 ## 7. Authority separation
 
@@ -188,7 +173,7 @@ caller/target project        business truth + irreversible acceptance
 
 `CANDIDATE != RESULT_READY != business DONE`.
 
-Interactive Hermes cannot self-grant project credentials, Control transitions, production writes or irreversible business actions. A future dashboard-triggered framework task must use the same governed caller/task contract as every other caller.
+Interactive Hermes cannot self-grant project credentials, Control transitions, production writes or irreversible business actions. A later dashboard-triggered framework task must use the same governed caller/task contract as every other caller.
 
 ## 8. Deployment model
 
@@ -198,12 +183,10 @@ Current Modal topology is one app containing:
 
 - protected FreeLLMAPI web service;
 - bounded Hermes worker Function;
-- GAP-05 native Hermes dashboard web service candidate;
+- GAP-05 native Hermes dashboard candidate;
 - exactly one dedicated dashboard state Volume.
 
-Ordinary pushes do not deploy. A source merge is therefore not user-facing enablement.
-
-GAP-05 requires exact-head CI, fresh external review and OAuth provisioning before the dashboard may be promoted for user-facing proof.
+Ordinary pushes do not deploy. Source merge is therefore not user-facing enablement.
 
 ## 9. Verification
 
@@ -211,15 +194,17 @@ Candidate CI contains:
 
 1. deterministic compile/tests/topology contracts;
 2. exact pinned Hermes installation;
-3. exact pinned provider-catalog-to-managed-env equality proof;
-4. native managed-scope provider/tool immutability proof;
+3. exact provider-catalog-to-managed-env equality proof;
+4. managed provider/tool/plugin/fallback immutability proof;
 5. native non-loopback auth-gate proof;
-6. native PTY environment inheritance + `bang_shell_enabled() == false` proof;
-7. exact route-fence proof for config/env/provider/MCP/plugin/cron mutations and `/api/console`;
-8. exact FreeLLMAPI image pull;
-9. existing real Hermes → FreeLLMAPI → free model → web-tool probe.
+6. native bundled-plugin discovery proof;
+7. exact safe-tool resolution and unsafe-tool veto proof;
+8. valid FreeLLMAPI execution plus invalid direct-provider short-circuit proof;
+9. native PTY registry=1, console refusal and legacy-PTY refusal proof;
+10. PTY inheritance + `bang_shell_enabled() == false` proof;
+11. exact FreeLLMAPI image pull and existing real Hermes → FreeLLMAPI → web-tool regression probe.
 
-Live mobile/session-persistence evidence remains an enablement gate after external exact-candidate review and OAuth provisioning.
+Live mobile/auth/session-persistence evidence remains an enablement gate after external exact-candidate review and OAuth provisioning.
 
 ## 10. Current Mission sequence
 
@@ -233,14 +218,14 @@ GAP-01 bounded carrier        DONE
   -> GAP-04 bounded caller integration
 ```
 
-Parallelism is still experimental until GAP-03 proves value. A framework DB/queue, Sandbox tooling or project publisher is not introduced speculatively.
+Parallelism remains experimental until GAP-03 proves value. A framework DB/queue, Sandbox tooling or project publisher is not introduced speculatively.
 
 ## 11. Current non-goals
 
 Do not add without a later concrete governed requirement:
 
 - second agent runtime;
-- direct model-provider integration;
+- direct model-provider inference;
 - custom dashboard/auth implementation;
 - recursive/unbounded delegation;
 - framework business DB or queue;

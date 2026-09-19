@@ -1,6 +1,6 @@
 # Agent Framework — Current Project Facts
 
-**Observed date:** 2026-09-18  
+**Observed date:** 2026-09-19  
 **Repository:** `market-predictions/agent`  
 **Status type:** project-local implementation snapshot only  
 **Control runtime/status authority:** **no**
@@ -27,6 +27,10 @@ interactive_dashboard_runtime=native_hermes
 interactive_dashboard_auth=nous_portal_oauth
 interactive_dashboard_state=separate_hermes_volume
 interactive_dashboard_provider=freellmapi
+interactive_provider_secret_catalog=pinned_hermes_provider_catalog
+interactive_management_mutations=fenced
+interactive_native_console=disabled
+interactive_bang_shell=disabled_by_gateway_session
 interactive_direct_provider_credentials=false
 trusted_verifier_deployed=false
 worker_fanout_deployed=false
@@ -59,6 +63,7 @@ Owner-approved replenishment A8 authorizes the current GAP-05 candidate only. Th
 mobile/browser
   -> native Hermes Web Dashboard
   -> native Nous Portal OAuth gate
+  -> bounded host policy fence
   -> Hermes managed scope from GitHub
   -> protected FreeLLMAPI
   -> configured free-provider pool
@@ -66,17 +71,19 @@ mobile/browser
 
 Security/capability facts:
 
-- no dashboard fork or second agent runtime;
-- one Modal dashboard container;
-- interactive state is stored only in a dedicated Hermes Modal Volume;
+- no dashboard fork, reverse proxy, second auth server or second agent runtime;
+- one Modal dashboard container and exactly one dashboard-state Volume;
+- interactive state is stored only in that dedicated Hermes Modal Volume;
 - Control does not read/write interactive state;
 - target-project business truth is not stored in the dashboard;
 - model provider and model route are managed/pinned to FreeLLMAPI + `auto`;
-- interactive tools are limited to `web`, `memory`, `session_search`;
+- interactive model toolsets are limited to `web`, `memory`, `session_search`;
 - approval mode is managed/pinned to `manual`;
-- terminal/file/browser/delegation/messaging authority is absent from the interactive toolset;
-- direct provider credential names are administrator-managed empty entries, so the native Hermes key writer cannot persist them;
-- startup rejects any direct-provider credential already present in the dashboard process environment;
+- direct provider credential names are derived from the exact pinned Hermes provider catalog and materialized empty in managed scope at startup;
+- startup rejects any pinned upstream provider credential already present in the dashboard process environment;
+- hosted mutation routes for config/env/providers/MCP/plugins/cron are removed before the native Hermes server starts;
+- the separate native `/api/console` administration WebSocket is removed;
+- the normal chat PTY remains native but inherits `HERMES_GATEWAY_SESSION=1`, disabling exact-pinned Hermes `!command` local shell mode;
 - no target-project production credential enters Hermes.
 
 ## Enablement state
@@ -97,6 +104,7 @@ The OAuth client id is external configuration and is intentionally not generated
 The interactive Hermes home is mounted from dedicated Modal Volume `agent-hermes-dashboard-state`.
 
 - max dashboard containers: one;
+- exactly one GAP-05 persistence primitive: the dashboard state Volume;
 - SQLite journal mode: `delete`;
 - state commit interval: 30 seconds;
 - documented normal cold-restart loss bound: the latest uncommitted interval;

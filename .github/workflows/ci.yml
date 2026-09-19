@@ -25,7 +25,7 @@ jobs:
       - name: Install pinned deployment tooling
         run: python -m pip install --disable-pip-version-check -r requirements.txt
       - name: Compile Python
-        run: python -m compileall -q agent_carrier.py agent_budget_plugin.py interactive_dashboard.py modal_app.py runtime_versions.py scripts tests
+        run: python -m compileall -q agent_carrier.py agent_budget_plugin.py interactive_dashboard.py modal_app.py runtime_versions.py runtime/hermes_host_policy scripts tests
       - name: Run deterministic tests
         run: python -m unittest discover -s tests -v
       - name: Import Modal app without deployment credentials
@@ -73,6 +73,9 @@ jobs:
           git clone --filter=blob:none "$HERMES_REPO" /tmp/hermes-agent
           git -C /tmp/hermes-agent checkout --detach "$HERMES_COMMIT"
           test "$(git -C /tmp/hermes-agent rev-parse HEAD)" = "$HERMES_COMMIT"
+          mkdir -p /tmp/hermes-agent/plugins/agent-host-policy
+          cp runtime/hermes_host_policy/plugin.yaml /tmp/hermes-agent/plugins/agent-host-policy/plugin.yaml
+          cp runtime/hermes_host_policy/__init__.py /tmp/hermes-agent/plugins/agent-host-policy/__init__.py
           python -m pip install --disable-pip-version-check -e /tmp/hermes-agent
           python -m pip install --disable-pip-version-check \
             'exa-py==2.10.2' \
@@ -86,8 +89,10 @@ jobs:
           grep -q -- '--host' /tmp/hermes-dashboard-help.txt
           grep -q -- '--no-open' /tmp/hermes-dashboard-help.txt
           python - <<'PY'
+          import asyncio
           import json
           import os
+          import sys
           import tempfile
           from pathlib import Path
 
@@ -105,24 +110,6 @@ jobs:
           assert names == catalog_names
           assert 'OPENAI_API_KEY' in names
 
-          with tempfile.TemporaryDirectory() as tmp:
-              managed = Path(tmp)
-              (managed / 'config.yaml').write_text(
-                  json.dumps(policy.load_managed_policy()),
-                  encoding='utf-8',
-              )
-              policy.materialize_managed_env_policy(names, managed / '.env')
-              os.environ['HERMES_MANAGED_DIR'] = tmp
-              managed_scope.invalidate_managed_cache()
-              assert managed_scope.is_key_managed('model.provider')
-              assert managed_scope.is_env_managed('OPENAI_API_KEY')
-              assert all(managed_scope.is_env_managed(name) for name in names)
-              merged = managed_scope.apply_managed_overlay(
-                  {'model': {'provider': 'openai'}, 'platform_toolsets': {'cli': ['terminal']}}
-              )
-              assert merged['model']['provider'] == 'freellmapi'
-              assert merged['platform_toolsets']['cli'] == ['web', 'memory', 'session_search']
-
           source_env = {
               'FREELLMAPI_API_KEY': 'freellmapi-ci',
               'MODAL_PROXY_KEY': 'proxy-key',
@@ -133,34 +120,144 @@ jobs:
               'https://gateway.example', source_env,
               direct_provider_secret_names=names,
           )
+          assert hosted_env['FREELLMAPI_BASE_URL'] == 'https://gateway.example/v1'
           assert hosted_env['HERMES_GATEWAY_SESSION'] == '1'
+          assert policy.dashboard_command() == [
+              'hermes', 'dashboard', '--host', '0.0.0.0', '--port', '9119', '--no-open']
 
-          # Exact upstream PTY construction inherits HERMES_GATEWAY_SESSION;
-          # exact upstream bang_shell_enabled() therefore fails closed.
-          os.environ['HERMES_GATEWAY_SESSION'] = '1'
-          from tools.environments.local import build_subprocess_env
-          child_env = build_subprocess_env(scrub_secrets=False, inherit_profile_home=True)
-          assert child_env.get('HERMES_GATEWAY_SESSION') == '1'
-          from hermes_cli.bang_shell import bang_shell_enabled
-          assert bang_shell_enabled() is False
+          with tempfile.TemporaryDirectory() as tmp:
+              managed = Path(tmp) / 'managed'
+              home = Path(tmp) / 'home'
+              managed.mkdir()
+              home.mkdir()
+              (managed / 'config.yaml').write_text(
+                  json.dumps(policy.load_managed_policy()),
+                  encoding='utf-8',
+              )
+              policy.materialize_managed_env_policy(names, managed / '.env')
+              os.environ['HERMES_MANAGED_DIR'] = str(managed)
+              os.environ['HERMES_HOME'] = str(home)
+              os.environ['FREELLMAPI_BASE_URL'] = hosted_env['FREELLMAPI_BASE_URL']
+              os.environ['HERMES_GATEWAY_SESSION'] = '1'
+              managed_scope.invalidate_managed_cache()
 
-          from hermes_cli import web_server
-          assert web_server.should_require_auth('0.0.0.0') is True
-          removed = policy.install_host_route_policy(web_server.app)
-          required = {
-              ('WS', '/api/console'),
-              ('PUT', '/api/config'),
-              ('PUT', '/api/env'),
-              ('POST', '/api/env/reveal'),
-              ('POST', '/api/providers/oauth/{provider_id}/start'),
-              ('POST', '/api/providers/custom-endpoints'),
-          }
-          assert required <= removed, (required - removed, removed)
-          for route in web_server.app.router.routes:
-              path = str(getattr(route, 'path', '') or '')
-              methods = {str(m).upper() for m in (getattr(route, 'methods', None) or set())}
-              assert path != '/api/console'
-              assert not policy.is_blocked_mutation(path, methods), (path, methods)
+              assert managed_scope.is_key_managed('model.provider')
+              assert managed_scope.is_key_managed('plugins.enabled')
+              assert managed_scope.is_env_managed('OPENAI_API_KEY')
+              assert all(managed_scope.is_env_managed(name) for name in names)
+              merged = managed_scope.apply_managed_overlay({
+                  'model': {'provider': 'openai'},
+                  'fallback_providers': [{'provider': 'openai', 'model': 'gpt'}],
+                  'platform_toolsets': {'cli': ['terminal']},
+                  'plugins': {'enabled': ['other-plugin']},
+              })
+              assert merged['model']['provider'] == 'freellmapi'
+              assert merged['fallback_providers'] == []
+              assert merged['fallback_model'] == []
+              assert merged['platform_toolsets']['cli'] == ['web', 'memory', 'session_search']
+              assert merged['plugins']['enabled'] == ['agent-host-policy']
+
+              from hermes_cli.fallback_config import get_fallback_chain
+              assert get_fallback_chain(merged) == []
+
+              # Native dashboard bootstrap discovers the bundled policy plugin
+              # before start_server(), including its normal OAuth providers.
+              sys.argv = ['hermes', 'dashboard']
+              from hermes_cli import plugins
+              plugins.discover_plugins(force=True)
+              manager = plugins.get_plugin_manager()
+              assert 'agent-host-policy' in manager._plugins
+
+              # Exact pinned toolsets resolve to four allowed names; every other
+              # execution is blocked by Hermes' native fail-closed pre_tool hook.
+              from toolsets import resolve_toolset
+              safe_tools = set()
+              for toolset in ('web', 'memory', 'session_search'):
+                  safe_tools.update(resolve_toolset(toolset, include_registry=False))
+              assert safe_tools == {'web_search', 'web_extract', 'memory', 'session_search'}
+              for safe in sorted(safe_tools):
+                  block, _ = plugins._dispatch_pre_tool_call_hooks(safe, {})
+                  assert block is None, (safe, block)
+              for unsafe in ('terminal', 'write_file', 'delegate_task', 'cronjob_manage'):
+                  block, _ = plugins._dispatch_pre_tool_call_hooks(unsafe, {})
+                  assert block and 'Hosted dashboard policy blocks tool' in block, (unsafe, block)
+
+              # A session-scoped /model change cannot escape at inference time:
+              # invalid provider/base/model never reaches the downstream call.
+              from hermes_cli.middleware import run_llm_execution_middleware
+              downstream = []
+              def provider_call(request):
+                  downstream.append(request)
+                  return 'provider-ok'
+
+              assert run_llm_execution_middleware(
+                  {'messages': []}, provider_call,
+                  provider='freellmapi', model='auto', base_url='https://gateway.example/v1',
+              ) == 'provider-ok'
+              assert len(downstream) == 1
+              assert run_llm_execution_middleware(
+                  {'messages': []}, provider_call,
+                  provider='openai', model='gpt', base_url='https://api.openai.com/v1',
+              ) is None
+              assert len(downstream) == 1
+
+              from hermes_cli import web_server, web_server_chat
+              assert web_server.should_require_auth('0.0.0.0') is True
+              assert web_server_chat.PTY_REGISTRY._max == 1
+
+              middleware = [
+                  item for item in web_server.app.user_middleware
+                  if getattr(getattr(item, 'cls', None), '__name__', '') == 'HostedDashboardPolicyMiddleware'
+              ]
+              assert len(middleware) == 1
+              middleware_cls = middleware[0].cls
+              reached = []
+              sent = []
+              async def downstream_app(scope, receive, send):
+                  reached.append((scope['type'], scope.get('path')))
+              async def receive():
+                  return {'type': 'http.disconnect'}
+              async def send(message):
+                  sent.append(message)
+              fence = middleware_cls(downstream_app)
+
+              asyncio.run(fence(
+                  {'type': 'http', 'method': 'PUT', 'path': '/api/config', 'query_string': b''},
+                  receive, send))
+              assert sent[0]['status'] == 403 and not reached
+
+              sent.clear()
+              asyncio.run(fence(
+                  {'type': 'http', 'method': 'POST', 'path': '/api/sessions/x', 'query_string': b''},
+                  receive, send))
+              assert reached[-1] == ('http', '/api/sessions/x')
+
+              sent.clear()
+              before = len(reached)
+              asyncio.run(fence(
+                  {'type': 'websocket', 'path': '/api/console', 'query_string': b''},
+                  receive, send))
+              assert sent[-1]['code'] == 4403 and len(reached) == before
+
+              sent.clear()
+              asyncio.run(fence(
+                  {'type': 'websocket', 'path': '/api/pty', 'query_string': b'ticket=x'},
+                  receive, send))
+              assert sent[-1]['code'] == 4403 and len(reached) == before
+
+              sent.clear()
+              asyncio.run(fence(
+                  {'type': 'websocket', 'path': '/api/pty', 'query_string': b'attach=tab-1'},
+                  receive, send))
+              assert reached[-1] == ('websocket', '/api/pty')
+
+              # Exact upstream PTY construction inherits HERMES_GATEWAY_SESSION;
+              # exact upstream bang_shell_enabled() therefore fails closed.
+              from tools.environments.local import build_subprocess_env
+              child_env = build_subprocess_env(scrub_secrets=False, inherit_profile_home=True)
+              assert child_env.get('HERMES_GATEWAY_SESSION') == '1'
+              from hermes_cli.bang_shell import bang_shell_enabled
+              assert bang_shell_enabled() is False
           PY
       - name: Pull exact FreeLLMAPI image digest
         run: |

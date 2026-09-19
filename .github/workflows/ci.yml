@@ -79,7 +79,7 @@ jobs:
             'firecrawl-py==4.17.0' \
             'parallel-web==0.4.2'
           hermes --version
-      - name: Prove pinned native dashboard and managed-scope enforcement
+      - name: Prove pinned native dashboard hosted policy
         run: |
           set -euo pipefail
           hermes dashboard --help >/tmp/hermes-dashboard-help.txt
@@ -91,24 +91,76 @@ jobs:
           import tempfile
           from pathlib import Path
 
+          import interactive_dashboard as policy
           from hermes_cli import managed_scope
+          from hermes_cli.provider_catalog import provider_catalog
+
+          catalog_names = frozenset(
+              name
+              for descriptor in provider_catalog()
+              for name in descriptor.api_key_env_vars
+              if name
+          )
+          names = policy.provider_secret_names()
+          assert names == catalog_names
+          assert 'OPENAI_API_KEY' in names
 
           with tempfile.TemporaryDirectory() as tmp:
               managed = Path(tmp)
               (managed / 'config.yaml').write_text(
-                  json.dumps({'model': {'provider': 'freellmapi'}, 'platform_toolsets': {'cli': ['web']}}),
+                  json.dumps(policy.load_managed_policy()),
                   encoding='utf-8',
               )
-              (managed / '.env').write_text('OPENAI_API_KEY=\n', encoding='utf-8')
+              policy.materialize_managed_env_policy(names, managed / '.env')
               os.environ['HERMES_MANAGED_DIR'] = tmp
               managed_scope.invalidate_managed_cache()
               assert managed_scope.is_key_managed('model.provider')
               assert managed_scope.is_env_managed('OPENAI_API_KEY')
+              assert all(managed_scope.is_env_managed(name) for name in names)
               merged = managed_scope.apply_managed_overlay(
                   {'model': {'provider': 'openai'}, 'platform_toolsets': {'cli': ['terminal']}}
               )
               assert merged['model']['provider'] == 'freellmapi'
-              assert merged['platform_toolsets']['cli'] == ['web']
+              assert merged['platform_toolsets']['cli'] == ['web', 'memory', 'session_search']
+
+          source_env = {
+              'FREELLMAPI_API_KEY': 'freellmapi-ci',
+              'MODAL_PROXY_KEY': 'proxy-key',
+              'MODAL_PROXY_SECRET': 'proxy-secret',
+              'HERMES_DASHBOARD_OAUTH_CLIENT_ID': 'agent:ci',
+          }
+          hosted_env = policy.build_dashboard_environment(
+              'https://gateway.example', source_env,
+              direct_provider_secret_names=names,
+          )
+          assert hosted_env['HERMES_GATEWAY_SESSION'] == '1'
+
+          # Exact upstream PTY construction inherits HERMES_GATEWAY_SESSION;
+          # exact upstream bang_shell_enabled() therefore fails closed.
+          os.environ['HERMES_GATEWAY_SESSION'] = '1'
+          from tools.environments.local import build_subprocess_env
+          child_env = build_subprocess_env(scrub_secrets=False, inherit_profile_home=True)
+          assert child_env.get('HERMES_GATEWAY_SESSION') == '1'
+          from hermes_cli.bang_shell import bang_shell_enabled
+          assert bang_shell_enabled() is False
+
+          from hermes_cli import web_server
+          assert web_server.should_require_auth('0.0.0.0') is True
+          removed = policy.install_host_route_policy(web_server.app)
+          required = {
+              ('WS', '/api/console'),
+              ('PUT', '/api/config'),
+              ('PUT', '/api/env'),
+              ('POST', '/api/env/reveal'),
+              ('POST', '/api/providers/oauth/{provider_id}/start'),
+              ('POST', '/api/providers/custom-endpoints'),
+          }
+          assert required <= removed, (required - removed, removed)
+          for route in web_server.app.router.routes:
+              path = str(getattr(route, 'path', '') or '')
+              methods = {str(m).upper() for m in (getattr(route, 'methods', None) or set())}
+              assert path != '/api/console'
+              assert not policy.is_blocked_mutation(path, methods), (path, methods)
           PY
       - name: Pull exact FreeLLMAPI image digest
         run: |

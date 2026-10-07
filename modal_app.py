@@ -76,7 +76,10 @@ freellmapi_image = (
     )
 )
 
-hermes_image = (
+# Keep every build step before local mounts. Modal rejects new apt/run build
+# steps after add_local_* mounts, so both runtime images derive from this
+# build-only base and add their local sources only after their own build chain.
+hermes_build_image = (
     modal.Image.debian_slim(python_version="3.12")
     .apt_install("git", "ripgrep")
     .run_commands(
@@ -90,7 +93,10 @@ hermes_image = (
         "firecrawl-py==4.17.0",
         "parallel-web==0.4.2",
     )
-    .add_local_python_source("agent_carrier", "agent_budget_plugin", "runtime_versions")
+)
+
+hermes_image = hermes_build_image.add_local_python_source(
+    "agent_carrier", "agent_budget_plugin", "runtime_versions"
 )
 
 # The dashboard is not a fork: it is the exact pinned Hermes source already used
@@ -100,7 +106,7 @@ hermes_image = (
 # Node is exact-pinned and checksum-verified because it enters the executable
 # build chain.
 dashboard_image = (
-    hermes_image
+    hermes_build_image
     .apt_install("curl", "xz-utils")
     .run_commands(
         f"curl -fsSLo /tmp/node.tar.xz {NODE_LINUX_X64_URL}",

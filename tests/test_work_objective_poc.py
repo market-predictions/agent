@@ -18,7 +18,7 @@ dashboard_image = (
 DASHBOARD = "from runtime_versions import MODAL_APP_NAME\n"
 REQUEST = {
     "id": 81001,
-    "body": "CONTROL_WORK_OBJECTIVE_REQUEST_20261009\nNATIVE_OBJECTIVE_PROOF_20261009",
+    "body": "CONTROL_WORK_POC_REQUEST_20261009\nNATIVE_OBJECTIVE_PROOF_20261009",
     "user": {"login": "github-actions[bot]"},
     "created_at": "2026-10-09T10:00:00Z",
 }

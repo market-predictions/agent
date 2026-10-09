@@ -15,7 +15,7 @@ REQUEST = {
 }
 REPLY = {
     "id": 6076248402,
-    "body": "CONTROL_WORK_POC_RESULT_20261009 3 " + HEAD + " status=PASS",
+    "body": "CONTROL_WORK_POC_RESULT_20261009 3 " + HEAD + " request_comment_id=6076243327 status=PASS",
     "created_at": "2026-10-09T07:11:54Z",
     "user": {"login": "market-predictions"},
 }
@@ -65,11 +65,22 @@ class WorkTransportPocTests(unittest.TestCase):
         self.event["comment"]["user"]["login"] = "unknown-user"
         self.check_rejects()
 
-    def test_ambiguous_requests(self):
+    def test_other_request_does_not_break_exact_correlation(self):
         other = copy.deepcopy(REQUEST)
         other["id"] = 70001
         other["created_at"] = "2026-10-09T07:11:31Z"
         self.comments.append(other)
+        self.assertEqual(validate(self.event, self.pr, self.comments)["request_comment_id"], REQUEST["id"])
+
+    def test_unknown_request_id_rejected(self):
+        changed = self.event["comment"]["body"].replace("6076243327", "70001")
+        self.event["comment"]["body"] = changed
+        self.comments[1]["body"] = changed
+        self.check_rejects()
+
+    def test_legacy_result_without_request_id_rejected(self):
+        self.event["comment"]["body"] = self.event["comment"]["body"].replace(" request_comment_id=6076243327", "")
+        self.comments[1]["body"] = self.event["comment"]["body"]
         self.check_rejects()
 
     def test_duplicate_replies(self):

@@ -69,7 +69,7 @@ def validate(event: dict, pr: dict, comments: list[dict]) -> dict:
         raise InvalidProof("result PR head is stale")
     created = _time(result.get("created_at"))
     same = [c for c in comments if c.get("id") == result["id"]]
-    if len(same) != 1 or same[0].get("body") != body:
+    if len(same) != 1 or same[0].get("body") != body or not _owner(same[0]) or same[0].get("created_at") != result.get("created_at"):
         raise InvalidProof("event/result readback mismatch")
     requests = [
         c for c in comments

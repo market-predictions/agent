@@ -1,0 +1,67 @@
+name: Control Work native dispatch POC
+
+# Temporary isolated diagnostic only. Does NOT use Control runtime authority.
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  dispatch:
+    if: >-
+      ${{
+        github.repository == 'market-predictions/agent' &&
+        github.actor == 'market-predictions' &&
+        github.event.issue.pull_request &&
+        github.event.issue.number == 3 &&
+        github.event.comment.body == 'CONTROL_NATIVE_BRIDGE_FIRE_20261009'
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Generate isolated Work request from GitHub Actions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from urllib.request import Request, urlopen
+
+          with open(os.environ["GITHUB_EVENT_PATH"], encoding="utf-8") as stream:
+              event = json.load(stream)
+          assert event["repository"]["full_name"] == "market-predictions/agent"
+          assert event["issue"]["number"] == 3 and event["issue"].get("pull_request")
+          assert event["comment"]["user"]["login"] == "market-predictions"
+          assert event["comment"]["body"] == "CONTROL_NATIVE_BRIDGE_FIRE_20261009"
+          parent = event["comment"]["id"]
+          assert isinstance(parent, int) and parent > 0
+          body = (
+              "CONTROL_WORK_POC_REQUEST_20261009\n"
+              "NATIVE_CARRIER_BRIDGE_PROOF_20261009\n"
+              f"source_comment_id={parent}\n"
+              "Isolated diagnostic: read current head of agent PR #3, "
+              "respond once with the exact Work POC result and source request ID. "
+              "No Control TICK/EVENT, code changes, merges, deploy or private state."
+          )
+          request = Request(
+              "https://api.github.com/repos/market-predictions/agent/issues/3/comments",
+              data=json.dumps({"body": body}).encode("utf-8"),
+              headers={
+                  "Authorization": "Bearer " + os.environ["GH_TOKEN"],
+                  "Accept": "application/vnd.github+json",
+                  "Content-Type": "application/json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "User-Agent": "control-work-native-dispatch-proof",
+              },
+              method="POST",
+          )
+          with urlopen(request, timeout=15) as response:
+              reply = json.load(response)
+          assert reply["body"] == body and reply["id"] > parent
+          print("CONTROL_WORK_NATIVE_DISPATCH_REQUEST_ID=" + str(reply["id"]))
+          PY

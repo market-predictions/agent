@@ -102,6 +102,13 @@ class ObjectiveEvidenceTests(unittest.TestCase):
         )
         self.check_rejects()
 
+    def test_inherited_base_mount_fails(self):
+        self.modal = MODAL.replace(
+            "hermes_build_image = create_image()",
+            'hermes_build_image = create_image().add_local_python_source("runtime_versions")'
+        )
+        self.check_rejects()
+
     def test_dashboard_changed_must_fail(self):
         self.dashboard = "import math\n"
         self.check_rejects()

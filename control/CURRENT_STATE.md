@@ -1,5 +1,14 @@
 # Agent Framework — Current Project Facts
 
+## 2026-10-09 — Completed Control ↔ Work transport experiment
+
+The temporary GitHub event-triggered Work/Actions transport observer was positively tested, then removed from this repository to avoid a permanent POC-only workflow, code path or test surface. The separate Work POC task was paused. **This does not activate Agent/Control integration or grant any authority to Hermes or Work.**
+
+- Exact GitHub request PR #3 comment [6078066652](https://github.com/market-predictions/agent/pull/3#issuecomment-6078066652) produced one Work reply [6078073286](https://github.com/market-predictions/agent/pull/3#issuecomment-6078073286) after 27 seconds.
+- Native, strictly read-only Actions [run 37910498512](https://github.com/market-predictions/agent/actions/runs/37910498512) accepted the exact request ID + current PR head correlation and emitted `CORRELATED_UNTRUSTED`, `work_origin_attested=false`, `control_event_authorized=false`. The temporary POC-only implementation and 15 adversarial tests are preserved in Git history: PRs [#4](https://github.com/market-predictions/agent/pull/4) and [#5](https://github.com/market-predictions/agent/pull/5).
+- GitHub owner attribution alone cannot attest that Work generated the result or that its semantic judgment is correct. No Control TICK/EVENT, queue/CAS, deploy, merge or target mutation was performed. Control's canonical incident/evidence record is [control-engine #106](https://github.com/market-predictions/control-engine/issues/106#issuecomment-6078094395).
+- Production Work/Control binding still requires independently trusted authorization, lifecycle/freshness checks and validated semantic work evidence. Do not restore the retired POC observer or create another helper scheduler.
+
 **Observed date:** 2026-09-10  
 **Repository:** `market-predictions/agent`  
 **Status type:** project-local implementation snapshot only  

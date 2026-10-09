@@ -18,7 +18,7 @@ PR_NUMBER = 3
 OWNER = "market-predictions"
 REQUEST = "CONTROL_WORK_POC_REQUEST_20261009"
 RESULT = re.compile(
-    r"CONTROL_WORK_POC_RESULT_20261009 3 ([0-9a-f]{40}) status=PASS"
+    r"CONTROL_WORK_POC_RESULT_20261009 3 ([0-9a-f]{40}) request_comment_id=([1-9][0-9]*) status=PASS"
 )
 WINDOW_SECONDS = 600
 API = "https://api.github.com"
@@ -67,31 +67,34 @@ def validate(event: dict, pr: dict, comments: list[dict]) -> dict:
         raise InvalidProof("result format or author invalid")
     if match.group(1) != pr["head"]["sha"]:
         raise InvalidProof("result PR head is stale")
+    request_id = int(match.group(2))
     created = _time(result.get("created_at"))
     same = [c for c in comments if c.get("id") == result["id"]]
     if len(same) != 1 or same[0].get("body") != body or not _owner(same[0]) or same[0].get("created_at") != result.get("created_at"):
         raise InvalidProof("event/result readback mismatch")
     requests = [
         c for c in comments
-        if isinstance(c.get("body"), str)
+        if c.get("id") == request_id
+        and isinstance(c.get("body"), str)
         and (c["body"] == REQUEST or c["body"].startswith(REQUEST + "\n"))
         and _owner(c)
         and 0 < (created - _time(c.get("created_at"))).total_seconds() <= WINDOW_SECONDS
     ]
     if len(requests) != 1:
-        raise InvalidProof("missing or ambiguous predecessor request")
+        raise InvalidProof("missing or stale exact predecessor request")
     started = _time(requests[0]["created_at"])
     replies = [
         c for c in comments
         if isinstance(c.get("body"), str)
-        and c["body"].startswith("CONTROL_WORK_POC_RESULT_20261009")
+        and (reply_match := RESULT.fullmatch(c["body"])) is not None
+        and int(reply_match.group(2)) == request_id
         and 0 < (_time(c.get("created_at")) - started).total_seconds() <= WINDOW_SECONDS
     ]
     if len(replies) != 1 or replies[0].get("id") != result["id"]:
         raise InvalidProof("ambiguous result for request")
     return {
         "verdict": "CORRELATED_UNTRUSTED",
-        "request_comment_id": requests[0]["id"],
+        "request_comment_id": request_id,
         "result_comment_id": result["id"],
         "pr_number": PR_NUMBER,
         "head_sha": match.group(1),

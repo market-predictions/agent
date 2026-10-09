@@ -8,6 +8,7 @@ on:
 permissions:
   contents: read
   issues: write
+  pull-requests: write
 
 jobs:
   dispatch:
@@ -60,8 +61,15 @@ jobs:
               },
               method="POST",
           )
-          with urlopen(request, timeout=15) as response:
-              reply = json.load(response)
+          from urllib.error import HTTPError
+          try:
+              with urlopen(request, timeout=15) as response:
+                  reply = json.load(response)
+          except HTTPError as error:
+              detail = error.read(4096).decode("utf-8", errors="replace")
+              print("GITHUB_NATIVE_DISPATCH_HTTP_STATUS=" + str(error.code))
+              print("GITHUB_NATIVE_DISPATCH_HTTP_DETAIL=" + detail)
+              raise SystemExit(1) from None
           assert reply["body"] == body and reply["id"] > parent
           print("CONTROL_WORK_NATIVE_DISPATCH_REQUEST_ID=" + str(reply["id"]))
           PY

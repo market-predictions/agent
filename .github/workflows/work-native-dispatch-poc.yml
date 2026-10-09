@@ -42,8 +42,8 @@ jobs:
           parent = event["comment"]["id"]
           assert isinstance(parent, int) and parent > 0
           body = (
-              "CONTROL_WORK_POC_REQUEST_20261009\n"
-              "NATIVE_CARRIER_BRIDGE_PROOF_20261009\n"
+              "CONTROL_WORK_OBJECTIVE_REQUEST_20261009\n"
+              "NATIVE_OBJECTIVE_PROOF_20261009\n"
               f"source_comment_id={parent}\n"
               "Bounded objective: assess PR #3 exact head for missing runtime_versions "
               "Python source mount on dashboard_image despite interactive_dashboard "

@@ -18,7 +18,7 @@ jobs:
         github.actor == 'market-predictions' &&
         github.event.issue.pull_request &&
         github.event.issue.number == 3 &&
-        github.event.comment.body == 'CONTROL_NATIVE_BRIDGE_FIRE_20261009'
+        github.event.comment.body == 'CONTROL_OBJECTIVE_BRIDGE_FIRE_20261009'
       }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
@@ -38,15 +38,16 @@ jobs:
           assert event["repository"]["full_name"] == "market-predictions/agent"
           assert event["issue"]["number"] == 3 and event["issue"].get("pull_request")
           assert event["comment"]["user"]["login"] == "market-predictions"
-          assert event["comment"]["body"] == "CONTROL_NATIVE_BRIDGE_FIRE_20261009"
+          assert event["comment"]["body"] == "CONTROL_OBJECTIVE_BRIDGE_FIRE_20261009"
           parent = event["comment"]["id"]
           assert isinstance(parent, int) and parent > 0
           body = (
               "CONTROL_WORK_POC_REQUEST_20261009\n"
               "NATIVE_CARRIER_BRIDGE_PROOF_20261009\n"
               f"source_comment_id={parent}\n"
-              "Isolated diagnostic: read current head of agent PR #3, "
-              "respond once with the exact Work POC result and source request ID. "
+              "Bounded objective: assess PR #3 exact head for missing runtime_versions "
+              "Python source mount on dashboard_image despite interactive_dashboard "
+              "importing runtime_versions. Reply with exact head and request comment ID. "
               "No Control TICK/EVENT, code changes, merges, deploy or private state."
           )
           request = Request(
@@ -73,3 +74,28 @@ jobs:
           assert reply["body"] == body and reply["id"] > parent
           print("CONTROL_WORK_NATIVE_DISPATCH_REQUEST_ID=" + str(reply["id"]))
           PY
+
+  verify-objective:
+    if: >-
+      ${{
+        github.repository == 'market-predictions/agent' &&
+        github.event.issue.pull_request &&
+        github.event.issue.number == 3 &&
+        github.actor == 'market-predictions' &&
+        startsWith(github.event.comment.body, 'CONTROL_WORK_OBJECTIVE_RESULT_20261009 ')
+      }}
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout trusted main
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Independently check exact current candidate and reply
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python -m scripts.work_objective_poc

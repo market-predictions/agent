@@ -18,7 +18,7 @@ from urllib.request import Request, urlopen
 OWNER = "market-predictions"
 REPO = "market-predictions/agent"
 NUMBER = 3
-REQUEST_PREFIX = "CONTROL_WORK_OBJECTIVE_REQUEST_20261009"
+REQUEST_PREFIX = "CONTROL_WORK_POC_REQUEST_20261009"
 REPLY_RE = re.compile(
     r"CONTROL_WORK_OBJECTIVE_RESULT_20261009 pr=3 head=([0-9a-f]{40}) "
     r"request_comment_id=([1-9][0-9]*) finding=RUNTIME_VERSIONS_NOT_MOUNTED"

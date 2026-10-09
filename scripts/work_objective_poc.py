@@ -63,6 +63,19 @@ def source_finding(modal_source: str, dashboard_source: str) -> bool:
     # build-only image and therefore must mount its own local Python sources.
     if not any(isinstance(x, ast.Name) and x.id == "hermes_build_image" for x in ast.walk(image)):
         raise InvalidEvidence("dashboard base is no longer build-only")
+    bases = [
+        node for node in modal_tree.body if isinstance(node, ast.Assign)
+        and any(isinstance(target, ast.Name) and target.id == "hermes_build_image" for target in node.targets)
+    ]
+    if len(bases) != 1:
+        raise InvalidEvidence("build-only base identity not unique")
+    if any(
+        isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
+        and call.func.attr == "add_local_python_source"
+        and any(isinstance(a, ast.Constant) and a.value == "runtime_versions" for a in call.args)
+        for call in ast.walk(bases[0].value)
+    ):
+        raise InvalidEvidence("runtime_versions is already mounted in inherited base")
     names = [
         arg.value for call in ast.walk(image)
         if isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)

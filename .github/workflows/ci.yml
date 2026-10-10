@@ -83,6 +83,8 @@ jobs:
           done
           git -C /tmp/hermes-agent checkout --detach "$HERMES_COMMIT"
           test "$(git -C /tmp/hermes-agent rev-parse HEAD)" = "$HERMES_COMMIT"
+          # Verify the production dashboard patch against the exact pinned upstream source.
+          python runtime/patch_hermes_dashboard.py /tmp/hermes-agent
           python -m pip install --disable-pip-version-check -e /tmp/hermes-agent
           python -m pip install --disable-pip-version-check \
             'exa-py==2.10.2' \

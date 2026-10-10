@@ -24,6 +24,12 @@ REPLACEMENT = """        ws_ping_timeout=ping_timeout,
 # resize logic own reflow, with no new server setting or background process.
 FONT_PATCHES = (
     (
+        "remove unused width initialization",
+        """    const tierW0 = terminalTierWidthPx(host);
+    const term = new Terminal({""",
+        """    const term = new Terminal({""",
+    ),
+    (
         "terminal font sizes",
         """function terminalFontSizeForWidth(layoutWidthPx: number): number {
   if (layoutWidthPx < 300) return 7;

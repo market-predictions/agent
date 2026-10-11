@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - name: Relay the already authorized Control request through native GitHub Actions
+      - name: Relay owner-authorized Work wake through native GitHub Actions
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_EVENT_PATH: ${{ github.event_path }}
@@ -28,7 +28,6 @@ jobs:
           python3 - <<'PY'
           import json
           import os
-          import re
           from urllib.request import Request, urlopen
 
           with open(os.environ["GITHUB_EVENT_PATH"], encoding="utf-8") as file:
@@ -44,16 +43,16 @@ jobs:
           lines = comment["body"].splitlines()
           if (len(lines) != 3
                   or lines[0] != "CONTROL_WORK_POC_REQUEST_20261009"
-                  or lines[1] != "CONTROL_INTERACTIVE_WORK_V1"):
-              raise SystemExit("not a supported Control Work request")
+                  or lines[1] != "CONTROL_INTERACTIVE_WAKE_V2"):
+              raise SystemExit("not a supported Control Work wake")
           capsule = json.loads(lines[2])
-          if (capsule.get("protocol") != "CONTROL_V4_RUNTIME_RESULT_V1"
-                  or capsule.get("result") != "WORK"
-                  or capsule.get("repository") != "market-predictions/agent"
-                  or capsule.get("action") != "REPAIR"
-                  or (capsule.get("candidate") or {}).get("candidate_pr_number") != 3
-                  or not re.fullmatch(r"v41:gh:[1-9][0-9]{5,19}", capsule.get("run_id", ""))):
-              raise SystemExit("Control Work capsule is invalid")
+          if (set(capsule) != {"protocol", "owner_run_id", "repository", "pr_number"}
+                  or capsule["protocol"] != "CONTROL_INTERACTIVE_WAKE_V2"
+                  or capsule["repository"] != "market-predictions/agent"
+                  or capsule["pr_number"] != 3
+                  or type(capsule["owner_run_id"]) is not int
+                  or capsule["owner_run_id"] <= 0):
+              raise SystemExit("Control Work wake capsule invalid")
           parent_id = comment["id"]
           if type(parent_id) is not int or parent_id <= 0:
               raise SystemExit("missing immutable source comment id")
@@ -72,6 +71,6 @@ jobs:
           with urlopen(request, timeout=20) as response:
               created = json.load(response)
           if created.get("body") != body or not isinstance(created.get("id"), int):
-              raise SystemExit("native Work handoff was not confirmed")
-          print("CONTROL_WORK_RELAY_COMMENT_ID=" + str(created["id"]))
+              raise SystemExit("native Work wake relay not confirmed")
+          print("CONTROL_WORK_WAKE_RELAY_COMMENT_ID=" + str(created["id"]))
           PY

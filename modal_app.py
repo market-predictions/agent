@@ -118,7 +118,7 @@ dashboard_image = (
         f"mkdir -p {HERMES_MANAGED_DIR}",
         f"mkdir -p {HERMES_SOURCE_DIR}/plugins/agent-host-policy",
     )
-    .add_local_python_source("interactive_dashboard")
+    .add_local_python_source("interactive_dashboard", "runtime_versions")
     .add_local_file(
         "runtime/hermes-managed-config.json",
         f"{HERMES_MANAGED_DIR}/config.yaml",

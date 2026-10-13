@@ -5,6 +5,7 @@ import copy
 import os
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 import interactive_dashboard as dashboard
@@ -21,6 +22,12 @@ TEST_PROVIDER_SECRETS = frozenset({"OPENAI_API_KEY", "ANTHROPIC_API_KEY"})
 
 class InteractiveDashboardContractTests(unittest.TestCase):
     def setUp(self) -> None:
+        # Check the deployed path, then substitute the repository fixture for local tests.
+        self.assertEqual(dashboard.MANAGED_POLICY_PATH, Path("/etc/hermes/config.yaml"))
+        policy = Path(__file__).resolve().parents[1] / "runtime/hermes-managed-config.json"
+        patcher = mock.patch.object(dashboard, "MANAGED_POLICY_PATH", policy)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.env = {
             "FREELLMAPI_API_KEY": "freellmapi-test-key",
             "MODAL_PROXY_KEY": "proxy-id",
@@ -45,6 +52,17 @@ class InteractiveDashboardContractTests(unittest.TestCase):
         )
         self.assertNotIn("terminal", policy["platform_toolsets"]["cli"])
         self.assertNotIn("delegation", policy["platform_toolsets"]["cli"])
+
+    def test_missing_installed_policy_fails_closed(self) -> None:
+        # Container startup must not fall back to an unmapped repo-relative policy.
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(dashboard, "MANAGED_POLICY_PATH", Path(tmp) / "config.yaml"):
+                with self.assertRaisesRegex(dashboard.DashboardConfigError, "unreadable"):
+                    dashboard.build_dashboard_environment(
+                        "https://gateway.example",
+                        self.env,
+                        direct_provider_secret_names=TEST_PROVIDER_SECRETS,
+                    )
 
     def test_policy_drift_fails_closed(self) -> None:
         policy = dashboard.load_managed_policy()

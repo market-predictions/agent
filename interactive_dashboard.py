@@ -21,8 +21,7 @@ from runtime_versions import (
 
 SAFE_INTERACTIVE_TOOLSETS = ("web", "memory", "session_search")
 HOST_POLICY_PLUGIN_NAME = "agent-host-policy"
-_RUNTIME_DIR = Path(__file__).parent / "runtime"
-MANAGED_POLICY_PATH = _RUNTIME_DIR / "hermes-managed-config.json"
+MANAGED_POLICY_PATH = Path(HERMES_MANAGED_DIR) / "config.yaml"
 
 
 class DashboardConfigError(ValueError):
@@ -39,9 +38,9 @@ def _absolute_http_url(value: str, *, label: str) -> str:
     return value
 
 
-def load_managed_policy(path: Path = MANAGED_POLICY_PATH) -> dict:
+def load_managed_policy(path: Path | None = None) -> dict:
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
+        value = json.loads((MANAGED_POLICY_PATH if path is None else path).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise DashboardConfigError("managed dashboard policy is unreadable") from exc
     if not isinstance(value, dict):

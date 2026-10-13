@@ -88,6 +88,8 @@ jobs:
           hermes dashboard --help >/tmp/hermes-dashboard-help.txt
           grep -q -- '--host' /tmp/hermes-dashboard-help.txt
           grep -q -- '--no-open' /tmp/hermes-dashboard-help.txt
+          # CI mirrors the policy path installed in the deployed dashboard image.
+          sudo install -D -m 0444 runtime/hermes-managed-config.json /etc/hermes/config.yaml
           python - <<'PY'
           import asyncio
           import json

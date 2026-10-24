@@ -11,5 +11,13 @@
   ],
   "routing": {
     "strategy": "balanced"
-  }
+  },
+  "models": [
+    {
+      "platform": "kilo",
+      "modelId": "nvidia/nemotron-3-super-120b-a12b:free",
+      "enabled": false,
+      "fallbackEnabled": false
+    }
+  ]
 }

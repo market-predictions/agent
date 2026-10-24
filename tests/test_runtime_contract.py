@@ -18,7 +18,7 @@ class RuntimeContractTests(unittest.TestCase):
             "https://github.com/NousResearch/hermes-agent.git",
         )
         self.assertEqual(runtime_versions.HERMES_SOURCE_DIR, "/opt/hermes-agent")
-        self.assertEqual(runtime_versions.FREELLMAPI_VERSION, "0.9.8")
+        self.assertEqual(runtime_versions.FREELLMAPI_VERSION, "0.16.9")
         self.assertRegex(
             runtime_versions.FREELLMAPI_IMAGE,
             r"^ghcr\.io/tashfeenahmed/freellmapi@sha256:[0-9a-f]{64}$",

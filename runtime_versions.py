@@ -12,10 +12,10 @@ HERMES_COMMIT = "2237be355906fbe6065ce1815711eee52b2d646e"
 HERMES_REPOSITORY = "https://github.com/NousResearch/hermes-agent.git"
 HERMES_SOURCE_DIR = "/opt/hermes-agent"
 
-FREELLMAPI_VERSION = "0.9.8"
+FREELLMAPI_VERSION = "0.16.9"
 FREELLMAPI_IMAGE = (
     "ghcr.io/tashfeenahmed/freellmapi@"
-    "sha256:f753afb35f58587a62863c767abf158fa46b90f0de9eab0f9162c48f953ea246"
+    "sha256:b4723c688f1d272a8a9e745b649221f6c44f3050c35e20ac31456855e74cf50b"
 )
 FREELLMAPI_PORT = 3001
 

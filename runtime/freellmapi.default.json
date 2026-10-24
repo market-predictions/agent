@@ -2,8 +2,7 @@
   "keys": [
     {
       "platform": "kilo",
-      "label": "keyless",
-      "enabled": false
+      "label": "keyless"
     },
     {
       "platform": "ovh",

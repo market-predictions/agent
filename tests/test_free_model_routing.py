@@ -14,7 +14,7 @@ class FreeModelRoutingPolicyTests(unittest.TestCase):
     def test_only_existing_keyless_free_providers_are_configured(self):
         config = json.loads((ROOT / "runtime/freellmapi.default.json").read_text())
         self.assertEqual(config["keys"], [
-            {"platform": "kilo", "label": "keyless"},
+            {"platform": "kilo", "label": "keyless", "enabled": False},
             {"platform": "ovh", "label": "keyless"},
         ])
         self.assertEqual(config["routing"], {"strategy": "balanced"})

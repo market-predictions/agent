@@ -1,6 +1,6 @@
-// Pinned integration shim for FreeLLMAPI v0.9.8.
+// Integration shim for the pinned FreeLLMAPI image.
 //
-// v0.9.8 creates a random unified API key on first migration but exposes no
+// The upstream runtime creates a random unified API key on first migration but exposes no
 // environment override for that setting. A remote headless deployment needs a
 // stable key shared only with the Hermes client. Use FreeLLMAPI's exported DB
 // API instead of editing SQLite directly. The caller suppresses stdout so the

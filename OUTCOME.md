@@ -1,19 +1,11 @@
 # OUTCOME — agent (Hermes-uitvoerder)
 
-> **CONCEPT (2026-11-15)** — opgesteld door Claude uit de README, de oude missie en de recente runs. De eigenaar bevestigt of past aan; tot dan geldt dit als werkhypothese, niet als besluit.
+**Status: dormant sinds 2026-11-15 (besluit eigenaar).** Workflows staan uit; de code blijft staan en kan weer aan.
 
-**Doel:** Een begrensde agent (Hermes, via FreeLLMAPI, op Modal) die openbare, niet-persoonlijke taken uitvoert en het resultaat laat controleren voordat het terugkomt.
+**Doel (toen actief):** een begrensde agent (Hermes, via FreeLLMAPI, op Modal) die openbare, niet-persoonlijke taken uitvoert en het resultaat laat controleren voordat het terugkomt.
 
-**Klaar als:**
-- `ci.yml` slaagt.
-- Eén voorbeeldtaak loopt van begin tot eind op Modal en levert een gecontroleerd resultaat.
-
-**Alleen met akkoord van de eigenaar:** persoonsgegevens verwerken; betaalde providers; inzet voor een ander project.
-
-**Status:** laatste run van `ci.yml`.
-
-## Open vragen aan de eigenaar
-- Control V4 is bevroren, en deze repo was de uitvoerder daarvan. Is er nog een project dat hem nodig heeft? Zo niet, voorstel: dormant.
+**Weer activeren alleen met akkoord van de eigenaar**, en dan eerst met één concrete taak die de agent moet doen.
 
 ## Besluiten
-- 2026-11-15 — Overgestapt op het outcome-first model (control-plane). Oudere plan-, status- en controledocumenten in deze repo zijn niet meer leidend.
+- 2026-11-15 — Overgestapt op het outcome-first model (control-plane).
+- 2026-11-15 — Dormant: geen enkel huidig rapport heeft een zelfstandige agent nodig; gratis LLM-providers zijn niet betrouwbaar genoeg voor vaste deadlines.
